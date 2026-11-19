@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ProContract: Decoupling Responsibility and Progress from an Evolvable Harness</title>
+  <meta name="description" content="ProContract takes the task out of the agent harness: a small deterministic kernel holds what is owed and records progress only when an independent verifier accepts the exact work submitted.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans:400,500,700|Noto+Sans:400,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./static/css/style.css">
+</head>
+<body>
+
+<!-- Hero -->
+<section class="hero" id="top">
+  <div class="hero-bg" aria-hidden="true"></div>
+  <header class="topnav">
+    <a class="topnav-item" href="./static/files/procontract.pdf">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h8l5 5v15H6z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 2v5h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M9 13h7M9 17h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <span>Paper</span>
+    </a>
+    <a class="topnav-item is-pending" title="The arXiv link will be added when the preprint is posted">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4l14 16M19 4L5 20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span>arXiv <em>soon</em></span>
+    </a>
+    <a class="topnav-item is-pending" href="https://github.com/Lemutisme/ProContract-Codex" title="The repository opens with the release">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4l-3 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Code <em>soon</em></span>
+    </a>
+  </header>
+
+  <div class="hero-body">
+    <h1 class="hero-title">ProContract</h1>
+    <p class="hero-subtitle">Decoupling Responsibility and Progress<br>from an Evolvable Harness</p>
+    <p class="hero-authors">
+      <span>Duo Zhou<sup>1,2,&dagger;</sup></span>
+      <span>Ruizhong Qiu<sup>1</sup></span>
+      <span>Yuji Zhang<sup>1</sup></span>
+      <span>Kaifeng Jin<sup>1</sup></span>
+      <br>
+      <span>Hanghang Tong<sup>1</sup></span>
+      <span>Eddie Zhang<sup>2</sup></span>
+      <span>Jerry Bai<sup>2</sup></span>
+    </p>
+    <p class="hero-affiliations">
+      <span>1. University of Illinois Urbana-Champaign</span>
+      <span>2. Isara Laboratories</span>
+    </p>
+    <p class="hero-note">&dagger; Work done during an internship at Isara.</p>
+    <div class="hero-logos">
+      <span class="logo-chip"><img src="./static/images/logo_uiuc.svg" alt="University of Illinois Urbana-Champaign"></span>
+      <span class="logo-chip"><img src="./static/images/logo_isara.svg" alt="Isara Laboratories"></span>
+    </div>
+  </div>
+
+  <nav class="jump-nav" aria-label="Jump to section">
+    <ul>
+      <li><a href="#intro">Introduction</a></li>
+      <li><a href="#problem">Why Agents Stop</a></li>
+      <li><a href="#method">The Kernel</a></li>
+      <li><a href="#results">Results</a></li>
+      <li><a href="#evolve">An Evolvable Harness</a></li>
+    </ul>
+  </nav>
+</section>
+
+<!-- Introduction -->
+<section class="section" id="intro">
+  <div class="container narrow">
+    <h2 class="lead">
+      Long-horizon agents <strong>stop early</strong> and their harnesses <strong>cannot be changed safely</strong>.
+      Both have one cause: the harness that works on a task also holds what is owed and decides when it is done.
+      <strong>ProContract takes the task out of the harness.</strong>
+    </h2>
+  </div>
+
+  <div class="carousel" id="carousel">
+    <button class="carousel-nav prev" aria-label="Previous">&#8249;</button>
+    <div class="carousel-stage">
+      <figure class="slide"><img src="./static/images/procontract_overview.png" alt="Overview: the task held by the harness, the task held by the kernel, and self-improvement under the same kernel"><figcaption>The task moves from the harness into a Contract that only a kernel may update.</figcaption></figure>
+      <figure class="slide"><img src="./static/images/analysis_stopping.png" alt="Where agents stop under different harnesses, and what their completion messages say"><figcaption>Agents stop where their methods stop: 197 of 200 six-hour tasks declared complete after a median of 36 minutes.</figcaption></figure>
+      <figure class="slide"><img src="./static/images/programbench_completed_pareto.png" alt="ProgramBench leaderboards: mean pass rate against cost"><figcaption>State of the art in mean pass rate on ProgramBench, at 62% of the best public entry's cost.</figcaption></figure>
+      <figure class="slide"><img src="./static/images/performance_paired.png" alt="ProContract switched on and off on the same executable"><figcaption>Switched on and off on one executable: +5.07 points, higher on 154 of 200 tasks.</figcaption></figure>
+      <figure class="slide"><img src="./static/images/rsi_process.png" alt="Self-improvement changes where runs end"><figcaption>As the harness is revised, early stops at its defects fall from 40% to 18% to 4%.</figcaption></figure>
+    </div>
+    <button class="carousel-nav next" aria-label="Next">&#8250;</button>
+    <div class="carousel-dots" id="carousel-dots"></div>
+  </div>
+
+  <div class="container narrow">
+    <div class="abstract">
+      <h3>Abstract</h3>
+      <p>
+        Two problems now limit long-horizon AI agents: they stop early and leave solvable work undone, and their harnesses cannot be changed safely, by developers or by the agents themselves. Both have one cause: the harness that works on a task also holds what is owed and decides when it is done. An agent's &ldquo;done&rdquo; therefore measures its method, not the task. Given six hours to rebuild a program, Codex, in its mode built for long tasks, declares 197 of 200 tasks complete after a median of 36 minutes, and one program passes every hidden test. The decision fails in two ways: in <em>progress misjudgment</em> the agent takes a passing check of its own for completion, and in <em>responsibility dilution</em> it narrows the task to what its method covers; 62 of the 197 completion messages name a gap and declare the task complete. The model is not the limit: one model stops after a median of 24, 36, or 90 minutes under three harnesses, and when its &ldquo;done&rdquo; is refused the same agent keeps finding and fixing failures for five more hours. But nothing then protects the task, and it begins to rewrite its goal into a narrower one; and when agents rewrite their own harness, each rewrite can change what is owed.
+      </p>
+      <p>
+        ProContract takes the task out of the harness. A small deterministic kernel holds each task's Contract and records progress only when an independent verifier accepts the exact work submitted; what is owed and what was accepted are the same under every version of the harness, including versions the agent writes. The harness thereby becomes <em>evolvable</em>: a run that stops with its task open exposes a defect of the harness, and revisions are decided by controls on the failing inputs, not by benchmark scores; over two rounds the share of runs that stop early at such a defect falls from 40% to 4%. Built on Codex, ProContract scores 5.07 points above Codex on the same model and executable, and with GPT-6.1 Sol it sets the state of the art in mean pass rate on ProgramBench, 89.70%, at 62% of the best public entry's cost.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Problem -->
+<section class="section alt" id="problem">
+  <div class="container">
+    <h2 class="section-title">An agent's &ldquo;done&rdquo; measures its method, not the task</h2>
+    <p class="section-lead">Given six hours to rebuild a program from an executable it can run but whose tests it never sees, Codex in its persistent <code>/goal</code> mode stops long before the allowance ends.</p>
+    <div class="stats">
+      <div class="stat"><div class="stat-num">197<span>/200</span></div><div class="stat-label">tasks declared complete</div></div>
+      <div class="stat"><div class="stat-num">36<span> min</span></div><div class="stat-label">median time before &ldquo;done&rdquo;, of six hours allowed</div></div>
+      <div class="stat"><div class="stat-num">1</div><div class="stat-label">program passes every hidden test</div></div>
+      <div class="stat"><div class="stat-num">5.3<span> h</span></div><div class="stat-label">more of finding and fixing failures when &ldquo;done&rdquo; is refused</div></div>
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <h3>Progress misjudgment</h3>
+        <p>The agent takes a passing check of its own for completion. All 197 completion messages cite a successful rebuild; whether a message claims a comparison with the reference is uncorrelated with its score.</p>
+      </div>
+      <div class="card">
+        <h3>Responsibility dilution</h3>
+        <p>The task shrinks to what the method covers. In 62 of the 197 messages the agent names a gap and marks the goal complete in the same message. Forced to continue, it rewrites its goal into a narrower one in 5 of 32 runs.</p>
+      </div>
+    </div>
+    <figure class="wide-figure"><img src="./static/images/analysis_stopping.png" alt="Time before stopping under several harnesses; pass rates of the artifacts declared complete; quotes from completion messages"><figcaption>The model is not the limit: one model stops after a median of 24, 36, or 90 minutes under three harnesses.</figcaption></figure>
+  </div>
+</section>
+
+<!-- Method -->
+<section class="section" id="method">
+  <div class="container">
+    <h2 class="section-title">A kernel that takes the task out of the harness</h2>
+    <p class="section-lead">A <strong>Contract</strong> holds the responsibility, what the agent owes, and its progress, what has been accepted as meeting it. Only a small deterministic <strong>kernel</strong> may update it.</p>
+    <div class="three-col">
+      <div class="card">
+        <div class="card-step">1</div>
+        <h3>The task stays open</h3>
+        <p>The worker's &ldquo;done&rdquo; is a submission, not a completion. Its own checks guide the work; they never record progress.</p>
+      </div>
+      <div class="card">
+        <div class="card-step">2</div>
+        <h3>The task is out of reach</h3>
+        <p>Progress enters only when an independent verifier judges an exact artifact and the kernel finds that judgment authorized and current. The worker cannot edit what is owed.</p>
+      </div>
+      <div class="card">
+        <div class="card-step">3</div>
+        <h3>The task holds across versions</h3>
+        <p>What is owed and what was accepted are the same under every version of the harness, including versions the agent writes. Replacing the harness mid-task changes neither.</p>
+      </div>
+    </div>
+    <figure class="wide-figure"><img src="./static/images/kernel_trace.png" alt="The kernel's record of one task: proposals, judgments and acceptances"><figcaption>A judgment is bound to what was judged: a changed artifact needs a new judgment, and an acceptance whose basis is withdrawn reopens its task.</figcaption></figure>
+  </div>
+</section>
+
+<!-- Results -->
+<section class="section alt" id="results">
+  <div class="container">
+    <h2 class="section-title">Higher with every model, and first on ProgramBench</h2>
+    <p class="section-lead">Built on Codex and compared with baselines that run the same model under the same six hours.</p>
+    <div class="stats">
+      <div class="stat"><div class="stat-num">+5.07</div><div class="stat-label">points above Codex <code>/goal</code> on the same model and executable; higher on 154 of 200 tasks</div></div>
+      <div class="stat"><div class="stat-num">89.70<span>%</span></div><div class="stat-label">mean pass rate with GPT-6.1 Sol: state of the art in mean pass rate on ProgramBench</div></div>
+      <div class="stat"><div class="stat-num">62<span>%</span></div><div class="stat-label">of the best public entry's cost per task</div></div>
+      <div class="stat"><div class="stat-num">65.9<span>%</span></div><div class="stat-label">on Terminal-Bench 2.0 with GPT-5.2; public harnesses of the same model pass 54.0% to 64.9%</div></div>
+    </div>
+    <div class="table-wrap">
+      <table class="results">
+        <caption>ProgramBench, mean hidden-test pass rate over 200 paired tasks</caption>
+        <thead><tr><th>Model</th><th>Baseline</th><th>Baseline (%)</th><th>ProContract (%)</th><th>Gain [95% interval]</th></tr></thead>
+        <tbody>
+          <tr class="group"><td colspan="5">Controlled: the same model, six hours, unlimited requests</td></tr>
+          <tr><td>GPT-6 Luna</td><td>Codex <code>/goal</code>, same executable</td><td>71.22</td><td><strong>76.28</strong></td><td>+5.07 [3.70, 6.54]</td></tr>
+          <tr><td>GPT-6 Luna</td><td>Codex <code>/goal</code>, stock release</td><td>71.20</td><td><strong>76.28</strong></td><td>+5.09 [3.78, 6.45]</td></tr>
+          <tr><td>GPT-6 Luna</td><td>Recursive Language Models</td><td>68.56</td><td><strong>76.28</strong></td><td>+7.73 [5.84, 9.75]</td></tr>
+          <tr class="group"><td colspan="5">Public leaderboard entry of the same model</td></tr>
+          <tr><td>GPT-6.1 Sol</td><td>mini-SWE-agent, public</td><td>85.25</td><td><strong>89.70</strong></td><td>+4.45 [2.37, 6.75]</td></tr>
+          <tr><td>GPT-5.6 Luna</td><td>mini-SWE-agent, public</td><td>68.29</td><td><strong>76.20</strong></td><td>+7.91 [5.46, 10.59]</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <figure class="wide-figure"><img src="./static/images/programbench_completed_pareto.png" alt="Public leaderboards: ProgramBench mean pass rate and cost, the same model family, and Terminal-Bench 2.0"><figcaption>ProContract with GPT-6.1 Sol is 1.91 points above the best of the 66 public entries.</figcaption></figure>
+    <h3 class="sub-title">Where the gain comes from</h3>
+    <p class="section-lead">The gain comes from keeping the task open, not from feedback. Refusing the worker's &ldquo;done&rdquo; with one fixed sentence scores higher than plain <code>/goal</code> on 26 of 30 tasks, but that loop cannot hold the task: no run can close, and the worker rewrites its goal. Under ProContract no run changes its task, and a run can end on a judgment other than the worker's.</p>
+    <figure class="wide-figure"><img src="./static/images/performance_paired.png" alt="Share of runs still working, per-task gain, the refused loop, and quality against integrity"><figcaption>ProContract switched on and off: off, the worker declares the task done within two hours.</figcaption></figure>
+  </div>
+</section>
+
+<!-- Evolvable harness -->
+<section class="section" id="evolve">
+  <div class="container">
+    <h2 class="section-title">The harness becomes evolvable</h2>
+    <p class="section-lead">Because the kernel's guarantee holds for any harness, every part of the harness is free to change. A run that stops with its task open exposes a defect of the harness; revisions are decided by controls on the failing inputs, an outside authority decides adoption, and the benchmark measures the result.</p>
+    <div class="stats three">
+      <div class="stat"><div class="stat-num">40<span>%</span> &rarr; 4<span>%</span></div><div class="stat-label">first attempts that stop early at a defect of the harness, over two rounds of revision</div></div>
+      <div class="stat"><div class="stat-num">23</div><div class="stat-label">released revisions, 18 of them answering a failure observed in a run</div></div>
+      <div class="stat"><div class="stat-num">0</div><div class="stat-label">changes to what is owed or what was accepted when the harness is replaced under a running task</div></div>
+    </div>
+    <figure class="wide-figure"><img src="./static/images/rsi_process.png" alt="Released revisions by part of the harness and round; how runs end in each evaluation"><figcaption>Self-improvement changes where runs end.</figcaption></figure>
+    <figure class="wide-figure small"><img src="./static/images/harness_taxonomy.png" alt="The parts of a harness and which of them were revised"><figcaption>Every part of the harness is free to change; the Contract is not the harness's to write.</figcaption></figure>
+  </div>
+</section>
+
+<!-- BibTeX -->
+<section class="section alt" id="bibtex">
+  <div class="container narrow">
+    <h2 class="section-title">BibTeX</h2>
+    <pre class="bibtex"><code>@article{zhou2026procontract,
+  title   = {ProContract: Decoupling Responsibility and Progress from an Evolvable Harness},
+  author  = {Zhou, Duo and Qiu, Ruizhong and Zhang, Yuji and Jin, Kaifeng and Tong, Hanghang and Zhang, Eddie and Bai, Jerry},
+  year    = {2026},
+  note    = {Preprint}
+}</code></pre>
+  </div>
+</section>
+
+<footer class="footer">
+  <p>Correspondence: <a href="mailto:duozhou2@illinois.edu">duozhou2@illinois.edu</a>, <a href="mailto:jerry@isara.io">jerry@isara.io</a></p>
+  <p class="footer-small">Logos are the marks of their institutions. Page layout written for this project.</p>
+</footer>
+
+<script src="./static/js/main.js"></script>
+</body>
+</html>
