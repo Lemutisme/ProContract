@@ -48,8 +48,8 @@ img { max-width: 100%; display: block; }
 .hero-affiliations { font-family: var(--head); font-size: clamp(1rem, 1.7vw, 1.45rem); margin: 1.4rem 0 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 0.4rem 1.6rem; opacity: 0.95; }
 .hero-note { font-size: 0.92rem; opacity: 0.75; margin: 0.6rem 0 0; }
 .hero-logos { display: flex; gap: 1rem; margin-top: 1.8rem; align-items: center; }
-.logo-chip { background: #fff; border-radius: 12px; padding: 0.55rem 0.9rem; display: inline-flex; align-items: center; box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
-.logo-chip img { height: 38px; width: auto; }
+.logo-chip { background: #fff; border-radius: 12px; width: 60px; height: 60px; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
+.logo-chip img { height: 40px; width: auto; }
 .jump-nav { position: relative; z-index: 2; padding: 0.75rem 1rem 1.4rem; background: linear-gradient(to top, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0)); }
 .jump-nav ul { list-style: none; margin: 0 auto; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.6rem; width: min(100%, 1100px); }
 .jump-nav a { display: block; text-align: center; color: #fff; font-weight: 600; letter-spacing: 0.01em; padding: 0.6rem 0.85rem; border: 1px solid rgba(255, 255, 255, 0.35); border-radius: 999px; background: rgba(0, 0, 0, 0.25); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); transition: all 0.2s; }
