@@ -1,0 +1,305 @@
+"""Exercise the paid boundary and post-submission feedback with zero model calls."""
+
+import json
+from pathlib import Path
+import tempfile
+from types import SimpleNamespace
+import unittest
+from unittest import mock
+
+import procontract_online as online
+from procontract_online_lineage import Lineage
+import procontract_online_pilot as pilot
+import procontract_online_plan as plans
+import procontract_study_budget as budgets
+import procontract_online_selection as selection
+
+
+class PilotTests(unittest.TestCase):
+    def test_expiring_credential_is_rejected_before_any_task_reservation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            digest = "d" * 64
+            limits = {
+                "task_launches": 1,
+                "learning_launches": 0,
+                "allocated_seconds": 18000,
+            }
+            budgets.initialize(root / "budget.sqlite", digest, limits)
+            plans.publish(root / "launch.json", {"plan_sha256": digest})
+            plan = {
+                "root": str(root),
+                "tasks": ["task"],
+                "arms": ["vanilla"],
+                "registry": str(root / "registry"),
+                "registry_sha256": "a" * 64,
+                "pins_sha256": "b" * 64,
+                "provider": {},
+                "episode_secs": 18000,
+                "credential_preflight": pilot.credentials.PROFILE,
+            }
+            with (
+                mock.patch.object(pilot.canonical, "configure"),
+                mock.patch.object(pilot.canonical, "bind_pins"),
+                mock.patch.object(
+                    pilot.canonical, "worker_command", return_value=["preflight"]
+                ),
+                mock.patch.object(pilot.canonical, "evaluator_env", return_value={}),
+                mock.patch.object(pilot.subprocess, "run"),
+                mock.patch.object(
+                    pilot.runner, "current_key", return_value="FIXTURE_KEY"
+                ),
+                mock.patch.object(
+                    pilot.credentials,
+                    "inspect",
+                    side_effect=ValueError("expires too soon"),
+                ),
+                mock.patch.object(pilot.runner, "prepare") as prepare,
+                self.assertRaisesRegex(ValueError, "expires too soon"),
+            ):
+                pilot.episode(plan, digest, 0, "vanilla")
+            prepare.assert_not_called()
+            self.assertEqual(
+                budgets.status(root / "budget.sqlite", digest, limits)["reserved"],
+                {"task_launches": 0, "learning_launches": 0, "allocated_seconds": 0},
+            )
+
+    def test_research_charges_budget_and_only_adaptive_gets_its_reward(self):
+        self.drive(draw=0, researcher=1, execution=13500)
+
+    def test_hold_skips_research_reservation_and_restores_executor_capacity(self):
+        self.drive(draw=0.99, researcher=0, execution=14400)
+
+    def test_contained_contract_failure_keeps_slots_spent_and_allows_next_task(self):
+        self.drive(draw=0, researcher=1, execution=13500, unavailable=True)
+
+    def test_vanilla_is_scored_without_contract_or_learning_and_cannot_restart(self):
+        self.drive(draw=0.99, researcher=0, execution=14400, vanilla=True)
+
+    def test_vanilla_cannot_hide_an_internal_worker_as_a_valid_control(self):
+        self.drive(
+            draw=0.99, researcher=0, execution=14400, vanilla=True, control_leak=True
+        )
+
+    def drive(
+        self,
+        *,
+        draw,
+        researcher,
+        execution,
+        unavailable=False,
+        vanilla=False,
+        control_leak=False,
+    ):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            binary = root / "codex"
+            binary.write_text("fixture")
+            (root / "seed-policy").mkdir()
+            (root / "seed-policy/executor.md").write_text(online.seed()["execution"])
+            plan = {
+                "root": str(root),
+                "selection_mode": "deployment",
+                "tasks": ["task-a", "task-b", "task-c"],
+                "arms": ["frozen", "adaptive"],
+                "model": "gpt-5.6-luna",
+                "effort": "max",
+                "binary": str(binary),
+                "registry": str(root / "registry"),
+                "registry_sha256": "b" * 64,
+                "pins_sha256": "c" * 64,
+                "research_secs": 900,
+                "inference_secs": 14400,
+                "episode_secs": 18000,
+                "grading_secs": 3600,
+                "prompt": str(root / "prompt"),
+                "provider": {"base_url": "http://127.0.0.1", "env_key": "KEY"},
+                "limits": {
+                    "task_launches": 6,
+                    "learning_launches": 3,
+                    "allocated_seconds": 108000,
+                },
+                "seed": online.seed(),
+            }
+            alternate = "vanilla" if vanilla else "adaptive"
+            if vanilla:
+                plan.update(
+                    tasks=["task-a"], arms=["frozen", "vanilla"], research_secs=0
+                )
+                plan["limits"] = {
+                    "task_launches": 2,
+                    "learning_launches": 0,
+                    "allocated_seconds": 36000,
+                }
+            digest = "d" * 64
+            budgets.initialize(root / "budget.sqlite", digest, plan["limits"])
+            plans.publish(root / "launch.json", {"plan_sha256": digest})
+            registry = SimpleNamespace(
+                tasks={t: {"image": "pinned", "total": 5} for t in ("task-a", "task-b")}
+            )
+            prepared = []
+            deadlines = []
+
+            def prepare(args):
+                prepared.append(args)
+                args.run_dir.mkdir(parents=True)
+                (args.run_dir / "policy").mkdir()
+                (args.run_dir / "manifest.json").write_text("{}")
+
+            def execute(args, *, learning, online_trace):
+                deadlines.append(args.deadline_secs)
+                summary = {
+                    "turn_statuses": ["completed"],
+                    "native_process_exit": {"status": "exited", "returncode": 0},
+                    "execution_environment": {"disconnect_observed": False},
+                    "server_exited_early": False,
+                    "status": {"phase": "supported", "contract_id": "contract"},
+                    "cost": {},
+                    "elapsed_secs": 10,
+                }
+                if args.arm == "off":
+                    self.assertIsNone(learning)
+                    summary.update(
+                        status=None, cost={"worker_rollouts": int(control_leak)}
+                    )
+                if unavailable and args.run_dir.name == "0-adaptive":
+                    status = {
+                        "phase": "abstained",
+                        "resting": True,
+                        "contract_id": None,
+                        "detail": "fixture draft declined",
+                    }
+                    try:
+                        learning.poll(None, None, status, None, elapsed_secs=1)
+                    except pilot.ContractUnavailable as error:
+                        summary.update(
+                            status=error.contract_status,
+                            runner_error="ContractUnavailable",
+                            server_exited_early=True,
+                            online_learning=learning.close(),
+                        )
+                        (args.run_dir / "run.json").write_text(json.dumps(summary))
+                        raise
+                if learning is not None:
+                    summary["online_learning"] = learning.close()
+                (args.run_dir / "run.json").write_text(json.dumps(summary))
+
+            def package(run):
+                archive = run / "submission.tar.gz"
+                archive.write_bytes(b"frozen fixture")
+                return archive
+
+            def grade(command, **_kwargs):
+                if command == ["preflight"]:
+                    return
+                run = Path(command[command.index("--output") + 1]).parent
+                archive = run / "submission.tar.gz"
+                self.assertTrue(archive.exists())
+                output = run / "eval"
+                output.mkdir()
+                (output / "canonical-result.json").write_text(
+                    json.dumps(
+                        {
+                            "valid": True,
+                            "resolved": 2,
+                            "total": 5,
+                            "submission_sha256": plans.sha(archive),
+                        }
+                    )
+                )
+
+            with (
+                mock.patch.object(
+                    selection.random.SystemRandom, "random", return_value=draw
+                ),
+                mock.patch.object(pilot, "OnlineTrace"),
+                mock.patch.object(pilot.canonical, "configure", return_value=registry),
+                mock.patch.object(pilot.canonical, "bind_pins"),
+                mock.patch.object(
+                    pilot.canonical,
+                    "preflight",
+                    side_effect=AssertionError("must use pinned evaluator subprocess"),
+                ),
+                mock.patch.object(
+                    pilot.canonical, "package_submission", side_effect=package
+                ),
+                mock.patch.object(
+                    pilot.canonical, "worker_command", side_effect=lambda *a: list(a)
+                ),
+                mock.patch.object(pilot.canonical, "evaluator_env", return_value={}),
+                mock.patch.object(pilot.runner, "prepare", side_effect=prepare),
+                mock.patch.object(pilot.runner, "run", side_effect=execute),
+                mock.patch.object(pilot.runner, "current_key", return_value="NOT_REAL"),
+                mock.patch.object(pilot.subprocess, "run", side_effect=grade),
+            ):
+                frozen = pilot.episode(plan, digest, 0, "frozen")
+                self.assertFalse((root / "lineage").exists())
+                if control_leak:
+                    with self.assertRaisesRegex(RuntimeError, "internal workers"):
+                        pilot.episode(plan, digest, 0, alternate)
+                    self.assertFalse((root / "runs/0-vanilla/result.json").exists())
+                    self.assertFalse((root / "runs/0-vanilla/eval").exists())
+                    self.assertEqual(
+                        budgets.status(root / "budget.sqlite", digest, plan["limits"])[
+                            "reserved"
+                        ],
+                        plan["limits"],
+                    )
+                    return
+                adaptive = pilot.episode(plan, digest, 0, alternate)
+                if unavailable:
+                    next_result = pilot.episode(plan, digest, 1, "adaptive")
+                    self.assertEqual(next_result["status"], "scored")
+                with self.assertRaises(budgets.AlreadyClaimed):
+                    pilot.episode(plan, digest, 0, alternate)
+            self.assertEqual(
+                [
+                    frozen["outcome"]["resolved"],
+                    (adaptive["outcome"] or {}).get("resolved"),
+                ],
+                [2, None if unavailable else 2],
+            )
+            self.assertEqual(
+                deadlines, [14400, execution] + ([execution] if unavailable else [])
+            )
+            self.assertEqual(len(prepared), 3 if unavailable else 2)
+            plans.publish(root / "terminal.json", {"status": "stopped"})
+            with self.assertRaisesRegex(ValueError, "terminal pilot"):
+                pilot.episode(plan, digest, 0, alternate)
+            if vanilla:
+                self.assertEqual([a.arm for a in prepared], ["on", "off"])
+                self.assertFalse((root / "lineage").exists())
+                self.assertEqual(
+                    pilot.control_acceptance.collect(plan)["status"], "PASS"
+                )
+                self.assertEqual(
+                    budgets.status(root / "budget.sqlite", digest, plan["limits"])[
+                        "reserved"
+                    ],
+                    plan["limits"],
+                )
+                return
+            rewards = [
+                e["body"]
+                for e in Lineage(root / "lineage", selection_scope=digest).events()
+                if e["kind"] == "reward"
+            ]
+            self.assertEqual(
+                [(r["episode"], r["resolved"], r["total"]) for r in rewards],
+                [("1-adaptive" if unavailable else "0-adaptive", 2, 5)],
+            )
+            used = budgets.status(root / "budget.sqlite", digest, plan["limits"])[
+                "reserved"
+            ]
+            self.assertEqual(
+                used,
+                {
+                    "task_launches": 3 if unavailable else 2,
+                    "learning_launches": researcher + int(unavailable),
+                    "allocated_seconds": 54000 if unavailable else 36000,
+                },
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

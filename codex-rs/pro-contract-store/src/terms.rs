@@ -1,0 +1,367 @@
+use std::collections::BTreeMap;
+
+use serde::Deserialize;
+use serde::Serialize;
+
+/// One numbered acceptance requirement, with the provenance the completeness review needs.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Requirement {
+    pub id: String,
+    pub text: String,
+    /// The verbatim span of the human request this requirement comes from.
+    pub source_quote: String,
+    /// Whether the requirement is inferred rather than stated.
+    pub inferred: bool,
+}
+
+/// A request element that was not turned into a requirement.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OutOfScope {
+    pub element: String,
+    /// The human statement that excluded it; `None` only for non-substantive elements.
+    pub human_statement: Option<String>,
+    pub non_substantive: bool,
+}
+
+/// A constraint on how the work is done. Its judgment needs evidence about the applicable
+/// execution, not merely an executor's assertion or the final artifact.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProcessConstraint {
+    pub text: String,
+    /// The verbatim span of the human request this constraint comes from.
+    pub source_quote: String,
+}
+
+/// Request context guides strategy; it does not create obligations or execution authority.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ContextKind {
+    Preference,
+    Permission,
+    Background,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RequestContext {
+    pub kind: ContextKind,
+    pub text: String,
+    pub source_quote: String,
+}
+
+/// The contract's terms: frozen at Issue and hashed into `terms_hash`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Terms {
+    /// The human request, verbatim.
+    pub intake_text: String,
+    pub requirements: Vec<Requirement>,
+    pub out_of_scope: Vec<OutOfScope>,
+    #[serde(default)]
+    pub process_constraints: Vec<ProcessConstraint>,
+    /// Non-obligatory context stays explicit instead of being overloaded into constraints.
+    /// Omission preserves the serialization and hashes of historical terms.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub context: Vec<RequestContext>,
+}
+
+/// The object an obligation concerns. Evidence may establish only its recorded scope.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ObligationScope {
+    Artifact,
+    Execution,
+}
+
+/// A canonical assessment view of frozen terms, not another source of authority.
+/// IDs are opaque and scoped to the terms hash. Existing requirement IDs stay readable;
+/// process IDs are assigned by the host and cannot collide with a requirement ID.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct Obligation<'a> {
+    pub id: String,
+    pub scope: ObligationScope,
+    pub text: &'a str,
+    pub source_quote: &'a str,
+    /// None means the historical representation did not record inference status.
+    pub inferred: Option<bool>,
+}
+
+impl Terms {
+    /// Derive the catalog without rewriting historical terms or changing their hashes.
+    pub fn obligations(&self) -> Vec<Obligation<'_>> {
+        let mut prefix = "process:".to_string();
+        while self.requirements.iter().any(|r| r.id.starts_with(&prefix)) {
+            prefix.push(':');
+        }
+        self.requirements
+            .iter()
+            .map(|r| Obligation {
+                id: r.id.clone(),
+                scope: ObligationScope::Artifact,
+                text: &r.text,
+                source_quote: &r.source_quote,
+                inferred: Some(r.inferred),
+            })
+            .chain(
+                self.process_constraints
+                    .iter()
+                    .enumerate()
+                    .map(|(index, r)| Obligation {
+                        id: format!("{prefix}{index}"),
+                        scope: ObligationScope::Execution,
+                        text: &r.text,
+                        source_quote: &r.source_quote,
+                        inferred: None,
+                    }),
+            )
+            .collect()
+    }
+}
+
+#[cfg(test)]
+mod obligation_tests {
+    use super::*;
+
+    #[test]
+    fn request_context_preserves_legacy_hashes_without_creating_obligations() {
+        let old = serde_json::json!({"intake_text":"Write the report. Prefer a quick result.",
+            "requirements":[{"id":"R1","text":"Write the report.","source_quote":"Write the report.","inferred":false}],
+            "out_of_scope":[],"process_constraints":[]});
+        let mut terms: Terms = serde_json::from_value(old.clone()).unwrap();
+        assert_eq!(serde_json::to_value(&terms).unwrap(), old);
+        let legacy = crate::digest_of("terms", &terms);
+        terms.context.push(RequestContext {
+            kind: ContextKind::Preference,
+            text: "Prefer a quick result.".into(),
+            source_quote: "Prefer a quick result.".into(),
+        });
+        assert_eq!(terms.obligations().len(), 1);
+        assert_eq!(terms.obligations()[0].id, "R1");
+        assert_ne!(crate::digest_of("terms", &terms), legacy);
+        let restored: Terms =
+            serde_json::from_value(serde_json::to_value(&terms).unwrap()).unwrap();
+        assert_eq!(restored, terms);
+    }
+
+    #[test]
+    fn historical_cutoffs_keep_their_wire_values_and_new_nulls_remain_absent() {
+        let old = serde_json::json!({"class":"checks_and_review","build_command":null,
+            "candidate_command":null,"candidate_tests":false,"differential":[],
+            "reference_command":null,"sealed":[],"sealed_threshold_permille":950,
+            "min_sealed_qualified":100,"min_success_permille":500});
+        let historical: EvidencePolicy = serde_json::from_value(old.clone()).unwrap();
+        assert_eq!(serde_json::to_value(&historical).unwrap(), old);
+        let mut missing = old;
+        for field in [
+            "sealed_threshold_permille",
+            "min_sealed_qualified",
+            "min_success_permille",
+        ] {
+            missing.as_object_mut().unwrap().remove(field);
+        }
+        let legacy: EvidencePolicy = serde_json::from_value(missing).unwrap();
+        assert_eq!(
+            crate::digest_of("policy", &historical),
+            crate::digest_of("policy", &legacy)
+        );
+        let current = EvidencePolicy {
+            sealed_threshold_permille: None,
+            min_sealed_qualified: None,
+            min_success_permille: None,
+            ..historical
+        };
+        let wire = serde_json::to_value(&current).unwrap();
+        assert!(wire["min_sealed_qualified"].is_null());
+        assert_eq!(
+            serde_json::from_value::<EvidencePolicy>(wire).unwrap(),
+            current
+        );
+    }
+
+    #[test]
+    fn derived_obligations_preserve_terms_bytes_and_have_disjoint_stable_ids() {
+        let terms = Terms {
+            context: Vec::new(),
+            intake_text: "Produce a report and preserve the inputs.".into(),
+            requirements: vec![Requirement {
+                id: "process:0".into(),
+                text: "report".into(),
+                source_quote: "Produce a report".into(),
+                inferred: false,
+            }],
+            process_constraints: vec![ProcessConstraint {
+                text: "preserve inputs".into(),
+                source_quote: "preserve the inputs".into(),
+            }],
+            out_of_scope: vec![],
+        };
+        let bytes = serde_json::to_vec(&terms).unwrap();
+        let catalog = terms.obligations();
+        assert_eq!(catalog[0].id, "process:0");
+        assert_eq!(catalog[1].id, "process::0");
+        assert_eq!(catalog[1].scope, ObligationScope::Execution);
+        assert_eq!(catalog[0].inferred, Some(false));
+        assert_eq!(catalog[1].inferred, None);
+        assert_eq!(catalog, terms.obligations());
+        assert_eq!(bytes, serde_json::to_vec(&terms).unwrap());
+        let restored: Terms = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(catalog, restored.obligations());
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EvidenceClass {
+    ChecksAndReview,
+    ReviewOnly,
+}
+
+/// One invocation run against both the candidate and the reference; only the invocation and its
+/// fixtures are frozen, never the expected output.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DifferentialCase {
+    pub id: String,
+    pub args: Vec<String>,
+    pub stdin: Option<String>,
+    /// Files written into the case directory, over the base workspace, before each run.
+    #[serde(default)]
+    pub files: Vec<FixtureFile>,
+    /// Empty directories created in the case directory before each run.
+    #[serde(default)]
+    pub dirs: Vec<String>,
+    /// Environment variables set for both programs.
+    #[serde(default)]
+    pub env: BTreeMap<String, String>,
+    /// Coverage tag; the only detail of a sealed case an executor may see.
+    #[serde(default)]
+    pub family: String,
+    /// A controlling terminal for interactive programs. None preserves ordinary pipe/file I/O.
+    /// With a terminal, `stdin: None` attaches fd 0 to it; explicit stdin remains a pipe/file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terminal: Option<Terminal>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Terminal {
+    pub rows: u16,
+    pub cols: u16,
+    /// Bytes supplied as UTF-8 to the controlling terminal, independently of piped stdin.
+    pub input: String,
+    /// Ordered, literal output triggers and replies. Each trigger is consumed once, including
+    /// across read boundaries. Empty preserves the historical startup-only invocation/hash.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dialogue: Vec<TerminalExchange>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TerminalExchange {
+    pub expect: String,
+    pub send: String,
+}
+
+/// A fixture file whose content is `text` repeated `repeat` times.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FixtureFile {
+    /// Relative to the case directory, without `..`.
+    pub path: String,
+    pub text: String,
+    #[serde(default = "one")]
+    pub repeat: u32,
+}
+
+fn one() -> u32 {
+    1
+}
+
+impl FixtureFile {
+    /// The file's content.
+    pub fn content(&self) -> String {
+        self.text.repeat(self.repeat as usize)
+    }
+
+    /// The content's length, computed without building it.
+    pub fn len(&self) -> usize {
+        self.text.len().saturating_mul(self.repeat as usize)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+/// What evidence settles the claim; frozen at Issue and hashed into `evidence_policy_hash`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EvidencePolicy {
+    pub class: EvidenceClass,
+    /// Shell command, run in the candidate root, that builds the candidate.
+    pub build_command: Option<String>,
+    /// Path of the built candidate program, relative to the candidate root.
+    pub candidate_command: Option<String>,
+    /// Run the candidate's own `cargo test --offline` when it has a `Cargo.toml`.
+    pub candidate_tests: bool,
+    /// Public cases: drafted up front and shown in residuals.
+    pub differential: Vec<DifferentialCase>,
+    /// The black-box reference program the differential cases compare against.
+    pub reference_command: Option<String>,
+    /// Sealed cases: written by the prober, never shown to the executor.
+    #[serde(default)]
+    pub sealed: Vec<DifferentialCase>,
+    /// Optional owner-declared sealed pass cutoff, in permille.
+    #[serde(default = "default_sealed_threshold_permille")]
+    pub sealed_threshold_permille: Option<u16>,
+    /// Optional owner-declared minimum number of qualified sealed cases.
+    #[serde(default = "default_min_sealed_qualified")]
+    pub min_sealed_qualified: Option<u32>,
+    /// Optional owner-declared share of successful reference runs, in permille.
+    #[serde(default = "default_min_success_permille")]
+    pub min_success_permille: Option<u16>,
+    /// A preparation failure remains part of the frozen basis. It blocks declared quantitative
+    /// criteria; without such criteria it is an observation for independent assessment.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preparation_failure: Option<String>,
+}
+
+impl EvidencePolicy {
+    pub fn has_declared_cutoffs(&self) -> bool {
+        self.sealed_threshold_permille.is_some()
+            || self.min_sealed_qualified.is_some()
+            || self.min_success_permille.is_some()
+    }
+}
+
+// Missing fields in historical policies keep their original interpretation.
+// New policies explicitly serialize null for an undeclared acceptance cutoff.
+pub fn default_sealed_threshold_permille() -> Option<u16> {
+    Some(950)
+}
+
+pub fn default_min_sealed_qualified() -> Option<u32> {
+    Some(100)
+}
+
+pub fn default_min_success_permille() -> Option<u16> {
+    Some(500)
+}
+
+/// How the subject is captured; frozen at intake and hashed into `capture_policy_hash`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CapturePolicy {
+    pub version: u32,
+    /// Paths relative to the workspace root that are never part of the subject. No ignore
+    /// files are consulted, so editing `.gitignore` cannot hide anything.
+    pub excluded_paths: Vec<String>,
+    pub max_file_bytes: u64,
+    pub max_total_bytes: u64,
+}
+
+impl CapturePolicy {
+    /// The capture policy every ProContract capture uses: version 1, 64 MiB per file, 1 GiB in total.
+    pub fn standard(excluded_paths: Vec<String>) -> Self {
+        Self {
+            version: 1,
+            excluded_paths,
+            max_file_bytes: 64 << 20,
+            max_total_bytes: 1 << 30,
+        }
+    }
+}

@@ -14,9 +14,12 @@ use codex_sandboxing::linux::CODEX_LINUX_SANDBOX_ARG0;
 use codex_utils_home_dir::find_codex_home;
 #[cfg(target_os = "windows")]
 use codex_windows_sandbox::CODEX_WINDOWS_SANDBOX_ARG1;
-#[cfg(unix)]
+#[cfg(all(unix, not(target_os = "linux")))]
 use std::os::unix::fs::symlink;
 use tempfile::TempDir;
+
+#[cfg(target_os = "linux")]
+mod self_executable;
 
 const APPLY_PATCH_ARG0: &str = "apply_patch";
 const MISSPELLED_APPLY_PATCH_ARG0: &str = "applypatch";
@@ -24,7 +27,8 @@ const LOCK_FILENAME: &str = ".lock";
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Arg0DispatchPaths {
-    /// Stable path to the current Codex executable for child re-execs.
+    /// Stable path to the Codex executable (or its private launch wrapper) for
+    /// child re-execs. Explicit ELF interpreter options remain part of the launch.
     ///
     /// Prefer this over [`std::env::current_exe()`] in code that may run under
     /// a test harness, where `current_exe()` can point at the harness binary
@@ -59,6 +63,10 @@ impl Arg0PathEntryGuard {
 }
 
 pub fn arg0_dispatch() -> Option<Arg0PathEntryGuard> {
+    // Private launchers may need an ELF interpreter before the Codex binary.
+    // Consume their mode before dispatch and before any child can inherit it.
+    #[cfg(target_os = "linux")]
+    let dispatch_name = take_internal_dispatch_name();
     #[cfg(target_os = "linux")]
     codex_utils_pty::init_spawn_helper(std::env::args_os());
     // Determine if we were invoked via the special alias.
@@ -68,6 +76,8 @@ pub fn arg0_dispatch() -> Option<Arg0PathEntryGuard> {
         .file_name()
         .and_then(|s| s.to_str())
         .unwrap_or("");
+    #[cfg(target_os = "linux")]
+    let exe_name = dispatch_name.as_deref().unwrap_or(exe_name);
 
     if exe_name == CODEX_LINUX_SANDBOX_ARG0 {
         // Safety: [`run_main`] never returns.
@@ -148,6 +158,25 @@ pub fn arg0_dispatch() -> Option<Arg0PathEntryGuard> {
     path_entry_guard
 }
 
+#[cfg(target_os = "linux")]
+fn take_internal_dispatch_name() -> Option<String> {
+    let hint = std::env::var_os(self_executable::DISPATCH_ENV);
+    // arg0_dispatch is called at the single-threaded process entrypoint, as are
+    // the existing dotenv and PATH updates below. This mode is not a grant.
+    unsafe { std::env::remove_var(self_executable::DISPATCH_ENV) };
+    hint.and_then(|value| internal_dispatch_name(&value))
+}
+
+#[cfg(target_os = "linux")]
+fn internal_dispatch_name(value: &std::ffi::OsStr) -> Option<String> {
+    match value.to_str() {
+        Some(
+            name @ (APPLY_PATCH_ARG0 | MISSPELLED_APPLY_PATCH_ARG0 | CODEX_LINUX_SANDBOX_ARG0),
+        ) => Some(name.to_string()),
+        _ => None,
+    }
+}
+
 fn prepare_path_env_var_with_aliases(
     install_context: &InstallContext,
     existing_path: Option<OsString>,
@@ -200,6 +229,11 @@ where
     // this executable. Admittedly, we could invoke `keep()` on it, but it
     // would be nice to avoid leaving temporary directories behind, if possible.
     let path_entry_guard = arg0_dispatch();
+    #[cfg(target_os = "linux")]
+    let current_exe = self_executable::SelfExecutable::detect()
+        .ok()
+        .and_then(|launch| launch.direct_path());
+    #[cfg(not(target_os = "linux"))]
     let current_exe = std::env::current_exe().ok();
 
     // Regular invocation. Run the async entry point on a thread with the same
@@ -231,11 +265,15 @@ where
     F: FnOnce(Arg0DispatchPaths) -> Fut,
     Fut: Future<Output = anyhow::Result<()>>,
 {
+    let codex_self_exe = path_entry_guard
+        .as_ref()
+        .and_then(|entry| entry.paths().codex_self_exe.clone())
+        .or(current_exe);
     let paths = Arg0DispatchPaths {
         main_execve_wrapper_exe: None,
-        codex_self_exe: current_exe.clone(),
+        codex_self_exe: codex_self_exe.clone(),
         codex_linux_sandbox_exe: if cfg!(target_os = "linux") {
-            linux_sandbox_exe_path(path_entry_guard.as_ref(), current_exe)
+            linux_sandbox_exe_path(path_entry_guard.as_ref(), codex_self_exe)
         } else {
             None
         },
@@ -305,7 +343,8 @@ where
 
 /// Creates a temporary directory with either:
 ///
-/// - UNIX: `apply_patch` symlink to the current executable
+/// - UNIX: `apply_patch` symlink to the current executable (or a private launcher
+///   retaining the explicit ELF interpreter and its options on Linux)
 /// - WINDOWS: `apply_patch.bat` batch script to invoke the current executable
 ///   with the hidden `--codex-run-as-apply-patch` flag.
 ///
@@ -377,15 +416,21 @@ fn prepare_aliases_in_home(
         .open(&lock_path)?;
     lock_file.try_lock()?;
 
+    #[cfg(target_os = "linux")]
+    let launch = self_executable::SelfExecutable::detect()?;
+    #[cfg(not(target_os = "linux"))]
+    let exe = std::env::current_exe()?;
+
     for filename in &[
         APPLY_PATCH_ARG0,
         MISSPELLED_APPLY_PATCH_ARG0,
         #[cfg(target_os = "linux")]
         CODEX_LINUX_SANDBOX_ARG0,
     ] {
-        let exe = std::env::current_exe()?;
+        #[cfg(target_os = "linux")]
+        launch.write_alias(&path.join(filename), Some(filename))?;
 
-        #[cfg(unix)]
+        #[cfg(all(unix, not(target_os = "linux")))]
         {
             let link = path.join(filename);
             symlink(&exe, &link)?;
@@ -408,9 +453,21 @@ fn prepare_aliases_in_home(
 
     let updated_path_env_var = path_env_with_entry(path, existing_path);
 
+    #[cfg(target_os = "linux")]
+    let codex_self_exe = match launch.direct_path() {
+        Some(exe) => exe,
+        None => {
+            let entry = path.join("codex-self");
+            launch.write_alias(&entry, None)?;
+            entry
+        }
+    };
+    #[cfg(not(target_os = "linux"))]
+    let codex_self_exe = exe;
+
     let paths = Arg0DispatchPaths {
         main_execve_wrapper_exe: None,
-        codex_self_exe: std::env::current_exe().ok(),
+        codex_self_exe: Some(codex_self_exe),
         codex_linux_sandbox_exe: {
             #[cfg(target_os = "linux")]
             {
@@ -804,6 +861,34 @@ mod tests {
             b"keep foreign helpers",
         );
         Ok(())
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn run_main_uses_guarded_launch_path_instead_of_interpreter_identity() -> anyhow::Result<()> {
+        let temp_dir = TempDir::new()?;
+        let launcher = temp_dir.path().join("codex-self");
+        fs::write(&launcher, b"launcher fixture")?;
+        let lock_file = create_lock(temp_dir.path())?;
+        let path_entry = Arg0PathEntryGuard::new(
+            temp_dir,
+            lock_file,
+            Arg0DispatchPaths {
+                codex_self_exe: Some(launcher.clone()),
+                codex_linux_sandbox_exe: None,
+                main_execve_wrapper_exe: None,
+            },
+        );
+        super::build_runtime()?.block_on(run_main_with_arg0_guard(
+            Some(path_entry),
+            Some(PathBuf::from("/lib/loader")),
+            |paths| async move {
+                assert_eq!(paths.codex_self_exe, Some(launcher.clone()));
+                assert_eq!(paths.codex_linux_sandbox_exe, Some(launcher.clone()));
+                assert!(launcher.exists());
+                Ok(())
+            },
+        ))
     }
 
     #[test]

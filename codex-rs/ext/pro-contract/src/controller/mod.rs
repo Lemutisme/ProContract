@@ -1,0 +1,400 @@
+//! The ProContract automation lane, installed as host-side thread and turn contributors.
+
+pub(crate) mod archive;
+pub(crate) mod archive_export;
+mod capture_barrier;
+pub(crate) mod capture_projection;
+mod capture_provider;
+pub(crate) mod decision;
+pub(crate) mod eligibility;
+pub(crate) mod evidence_tool;
+pub(crate) mod identity;
+mod native;
+mod observations;
+pub(crate) mod ports;
+pub(crate) mod runtime;
+pub(crate) mod selector_capture;
+mod succession_budget;
+mod successor;
+pub(crate) mod views;
+mod work;
+
+use std::sync::Arc;
+use std::sync::Weak;
+
+use codex_core::ThreadManager;
+use codex_core::config::Config;
+use codex_extension_api::ContextContributor;
+use codex_extension_api::ContextualUserFragment;
+use codex_extension_api::ExtensionData;
+use codex_extension_api::ExtensionFuture;
+use codex_extension_api::ExtensionMetrics;
+use codex_extension_api::PreviousWorldStateSection;
+use codex_extension_api::PromptFragment;
+use codex_extension_api::RenderedWorldStateFragment;
+use codex_extension_api::ThreadIdleInput;
+use codex_extension_api::ThreadLifecycleContributor;
+use codex_extension_api::ThreadStartInput;
+use codex_extension_api::ThreadStopInput;
+use codex_extension_api::TurnAbortInput;
+use codex_extension_api::TurnContextContributionInput;
+use codex_extension_api::TurnInputContext;
+use codex_extension_api::TurnInputContributor;
+use codex_extension_api::TurnLifecycleContributor;
+use codex_extension_api::TurnStartInput;
+use codex_extension_api::TurnStopInput;
+use codex_extension_api::WorldStateContributionInput;
+use codex_extension_api::WorldStateSectionContribution;
+use codex_features::Feature;
+use codex_protocol::ThreadId;
+use codex_protocol::models::ContentItemKind;
+use codex_protocol::protocol::SessionSource;
+use codex_protocol::user_input::UserInput;
+use serde_json::json;
+
+use self::decision::is_current_brief;
+use self::eligibility::Eligibility;
+use self::eligibility::EligibilityFacts;
+use self::eligibility::eligibility;
+use self::runtime::ThreadRuntime;
+use crate::BlobStore;
+use crate::Ledger;
+use crate::Settings;
+use crate::workers::policies::Policies;
+
+const SECTION_ID: &str = "pro_contract";
+const OPEN_MARKER: &str = "<pro_contract>";
+const CLOSE_MARKER: &str = "</pro_contract>";
+const REPAIR_OPEN_MARKER: &str = "<pro_contract_repair>";
+const REPAIR_CLOSE_MARKER: &str = "</pro_contract_repair>";
+
+type EnabledFn = dyn Fn(&Config) -> bool + Send + Sync;
+
+pub(crate) struct ProContractExtension {
+    thread_manager: Weak<ThreadManager>,
+    enabled: Box<EnabledFn>,
+}
+
+impl ProContractExtension {
+    pub(crate) fn new(thread_manager: Weak<ThreadManager>, enabled: Box<EnabledFn>) -> Self {
+        Self {
+            thread_manager,
+            enabled,
+        }
+    }
+
+    async fn start(&self, input: &ThreadStartInput<'_, Config>) {
+        let config = input.config;
+        if !(self.enabled)(config) {
+            return;
+        }
+        let Ok(thread_id) = ThreadId::from_string(input.thread_store.level_id()) else {
+            tracing::warn!("pro_contract: thread store has no thread id");
+            return;
+        };
+        let settings = Settings::load(config.codex_home.as_path());
+        let loaded = settings.as_ref().ok().and_then(Option::as_ref);
+        let facts = EligibilityFacts {
+            feature_enabled: true,
+            internal_or_subagent: matches!(
+                input.session_source,
+                SessionSource::Internal(_) | SessionSource::SubAgent(_)
+            ),
+            persistent: input.persistent_thread_state_available,
+            settings: loaded,
+            environment_ids: input
+                .environments
+                .iter()
+                .map(|environment| environment.environment_id.as_str())
+                .collect(),
+            mcp_server_count: config.mcp_servers.get().len(),
+            notify_configured: config.notify.is_some(),
+            hooks_enabled: config.features.enabled(Feature::CodexHooks),
+        };
+        let decision = match (&settings, eligibility(&facts)) {
+            (_, Eligibility::Inactive) => return,
+            (Err(error), _) => Err(format!("settings are invalid: {error}")),
+            (Ok(_), Eligibility::Abstain(reason)) => Err(reason),
+            (Ok(_), Eligibility::Eligible(profile)) => Ok(profile.clone()),
+        };
+        let dir = config.codex_home.as_path().join("pro_contract");
+        let ledger = match Ledger::open(config.sqlite_config(), &dir).await {
+            Ok(ledger) => ledger,
+            Err(error) => {
+                tracing::warn!("pro_contract: cannot open the ledger: {error}");
+                return;
+            }
+        };
+        let profile = match decision {
+            Ok(profile) => profile,
+            Err(reason) => {
+                record_abstention(&ledger, thread_id, &reason).await;
+                return;
+            }
+        };
+        let store = match BlobStore::open(&dir.join("blobs")) {
+            Ok(store) => store,
+            Err(error) => {
+                let reason = format!("cannot open the blob store: {error}");
+                record_abstention(&ledger, thread_id, &reason).await;
+                return;
+            }
+        };
+        let Some(settings) = settings.ok().flatten() else {
+            return;
+        };
+        let policies = match &settings.policy {
+            Some(bundle) => match Policies::load(bundle) {
+                Ok(policies) => policies,
+                Err(error) => {
+                    let reason = format!("cannot read the policy bundle: {error}");
+                    record_abstention(&ledger, thread_id, &reason).await;
+                    return;
+                }
+            },
+            None => Policies::default(),
+        };
+        let ports = Arc::new(native::CodexPorts {
+            thread_id,
+            manager: Weak::clone(&self.thread_manager),
+            config: config.clone(),
+            worker: settings.worker.clone(),
+        });
+        let runtime = ThreadRuntime::new(
+            thread_id,
+            settings,
+            profile,
+            policies,
+            runtime::Stores { dir, ledger, store },
+            ports,
+        );
+        input.thread_store.insert(runtime.evidence_access());
+        input.thread_store.insert(runtime);
+        if let Some(runtime) = runtime_of(input.thread_store) {
+            runtime.restore().await;
+        }
+    }
+}
+
+async fn record_abstention(ledger: &Ledger, thread_id: ThreadId, reason: &str) {
+    let status = runtime::StatusRecord {
+        thread_id: thread_id.to_string(),
+        contract_id: None,
+        phase: "abstained".to_string(),
+        detail: reason.to_string(),
+        resting: true,
+        repairs_used: 0,
+        class: String::new(),
+    };
+    if let Err(error) = ledger
+        .put_record(runtime::STATUS_KIND, &thread_id.to_string(), &status)
+        .await
+    {
+        tracing::warn!("pro_contract could not record status: {error}");
+    }
+}
+
+fn runtime_of(thread_store: &ExtensionData) -> Option<Arc<ThreadRuntime>> {
+    thread_store.get::<ThreadRuntime>()
+}
+
+impl ThreadLifecycleContributor<Config> for ProContractExtension {
+    fn on_thread_start<'a>(
+        &'a self,
+        input: ThreadStartInput<'a, Config>,
+    ) -> ExtensionFuture<'a, ()> {
+        Box::pin(async move { self.start(&input).await })
+    }
+
+    fn on_thread_idle<'a>(&'a self, input: ThreadIdleInput<'a>) -> ExtensionFuture<'a, ()> {
+        Box::pin(async move {
+            if let Some(runtime) = runtime_of(input.thread_store) {
+                runtime.thread_idle(input.cause).await;
+            }
+        })
+    }
+
+    fn on_thread_stop<'a>(&'a self, input: ThreadStopInput<'a>) -> ExtensionFuture<'a, ()> {
+        Box::pin(async move {
+            if let Some(runtime) = runtime_of(input.thread_store) {
+                runtime.stop().await;
+            }
+        })
+    }
+}
+
+struct ExecutorEpoch(u64);
+
+impl TurnLifecycleContributor for ProContractExtension {
+    fn on_turn_abort<'a>(&'a self, input: TurnAbortInput<'a>) -> ExtensionFuture<'a, ()> {
+        Box::pin(async move {
+            if let Some(runtime) = runtime_of(input.thread_store)
+                && let Some(epoch) = input.turn_store.get::<ExecutorEpoch>()
+            {
+                // User interruption may bypass thread-idle notification. Retain the
+                // responsibility and explicitly record that no handoff occurred.
+                runtime.turn_aborted(epoch.0).await;
+            }
+        })
+    }
+
+    fn on_turn_start<'a>(&'a self, input: TurnStartInput<'a>) -> ExtensionFuture<'a, ()> {
+        Box::pin(async move {
+            if let Some(runtime) = runtime_of(input.thread_store) {
+                input
+                    .turn_store
+                    .insert(ExecutorEpoch(runtime.turn_started().await));
+            }
+        })
+    }
+
+    fn on_turn_stop<'a>(&'a self, input: TurnStopInput<'a>) -> ExtensionFuture<'a, ()> {
+        Box::pin(async move {
+            if let Some(runtime) = runtime_of(input.thread_store) {
+                runtime
+                    .turn_stopped_with_message(
+                        input.turn_store.level_id().to_string(),
+                        input.last_agent_message,
+                    )
+                    .await;
+            }
+        })
+    }
+}
+
+impl TurnInputContributor for ProContractExtension {
+    fn contribute<'a>(
+        &'a self,
+        input: TurnInputContext<'a>,
+        _extension_metrics: Option<Arc<dyn ExtensionMetrics>>,
+        _session_store: &'a ExtensionData,
+        thread_store: &'a ExtensionData,
+        _turn_store: &'a ExtensionData,
+    ) -> ExtensionFuture<'a, Vec<Box<dyn ContextualUserFragment + Send>>> {
+        Box::pin(async move {
+            let text = input
+                .user_input
+                .iter()
+                .filter_map(|item| match item {
+                    UserInput::Text { text, .. } => Some(text.as_str()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            if let Some(runtime) = runtime_of(thread_store)
+                && !text.trim().is_empty()
+            {
+                runtime.intake(text).await;
+            }
+            Vec::new()
+        })
+    }
+}
+
+impl ContextContributor for ProContractExtension {
+    /// Full context is rebuilt after compaction, which drops the repair note the executor was
+    /// given; while the repair is unanswered, it is stated again.
+    fn contribute_turn_context<'a>(
+        &'a self,
+        input: TurnContextContributionInput<'a>,
+    ) -> ExtensionFuture<'a, Vec<PromptFragment>> {
+        Box::pin(async move {
+            let Some(runtime) = runtime_of(input.thread_store) else {
+                return Vec::new();
+            };
+            let mut context = vec![PromptFragment::developer_policy(
+                runtime.work_method().to_string(),
+                ContentItemKind("pro_contract.work_method".into()),
+            )];
+            let inputs = runtime.input_capabilities();
+            if !inputs.is_empty() {
+                context.push(PromptFragment::developer_policy(
+                    serde_json::json!({"declared_task_inputs":inputs}).to_string(),
+                    ContentItemKind("pro_contract.task_inputs".into()),
+                ));
+            }
+            // Strategy and provisioned capabilities exist before the first intake;
+            // responsibility-dependent notes are added only after admission.
+            if !runtime.admitted().await {
+                return context;
+            }
+            if runtime.progress_enabled() {
+                context.push(PromptFragment::developer_policy(
+                    "publish_progress assesses a frozen workspace under the original grant. progress_status reads its state and original options; repeating the same request/options waits for the existing owner or recalls its result. Retained results are readable with contract_read_evidence. These operations do not propose, grant Support or finish the task.",
+                    ContentItemKind("pro_contract.progress".into()),
+                ));
+            }
+            context.extend(
+                runtime
+                    .outstanding_repair()
+                    .await
+                    .map(|note| vec![repair_fragment(&note)])
+                    .unwrap_or_default(),
+            );
+            context
+        })
+    }
+
+    fn contribute_world_state<'a>(
+        &'a self,
+        input: WorldStateContributionInput<'a>,
+    ) -> ExtensionFuture<'a, Vec<WorldStateSectionContribution>> {
+        Box::pin(async move {
+            let Some(runtime) = runtime_of(input.thread_store) else {
+                return Vec::new();
+            };
+            let Some(brief) = runtime.brief().await else {
+                return Vec::new();
+            };
+            vec![brief_section(brief)]
+        })
+    }
+}
+
+/// The unanswered repair note as developer context.
+fn repair_fragment(note: &str) -> PromptFragment {
+    PromptFragment::developer_policy(
+        format!(
+            "{REPAIR_OPEN_MARKER}\n{}\n{REPAIR_CLOSE_MARKER}",
+            note.trim_end()
+        ),
+        ContentItemKind("pro_contract.repair_note".to_string()),
+    )
+}
+
+/// The executor's brief, rendered once per contract revision and kept across compaction.
+fn brief_section(brief: runtime::BriefView) -> WorldStateSectionContribution {
+    let snapshot = json!({ "contract": brief.contract_id, "revision": brief.revision });
+    let runtime::BriefView {
+        contract_id,
+        revision,
+        text,
+    } = brief;
+    WorldStateSectionContribution::new(SECTION_ID, move |previous| {
+        let fragment = match previous {
+            PreviousWorldStateSection::Known(value) if *value == snapshot => None,
+            PreviousWorldStateSection::Unknown => None,
+            PreviousWorldStateSection::Absent | PreviousWorldStateSection::Known(_) => {
+                Some(RenderedWorldStateFragment::new(
+                    "developer",
+                    (OPEN_MARKER, CLOSE_MARKER),
+                    codex_protocol::models::input_text(text.clone()),
+                ))
+            }
+        };
+        (Some(snapshot.clone()), fragment)
+    })
+    .with_retained_fragment_matcher(move |role, text| {
+        // History holds the body wrapped in the section's markers.
+        role == "developer"
+            && text
+                .trim()
+                .strip_prefix(OPEN_MARKER)
+                .and_then(|text| text.strip_suffix(CLOSE_MARKER))
+                .is_some_and(|body| is_current_brief(body, &contract_id, revision))
+    })
+}
+
+#[cfg(test)]
+#[path = "brief_section_tests.rs"]
+mod tests;

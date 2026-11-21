@@ -48,6 +48,7 @@ async fn response_cancel_race_completes_once() {
     });
     next_item(&receiver).await;
     let response = DynamicToolResponse {
+        structured_content: None,
         content_items: Vec::new(),
         success: true,
     };

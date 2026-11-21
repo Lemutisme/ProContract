@@ -61,6 +61,7 @@ fn test_codex_home() -> std::path::PathBuf {
 
 fn provider_for(base_url: String) -> ModelProviderInfo {
     ModelProviderInfo {
+        wait_on_rate_limits: false,
         name: "mock".into(),
         base_url: Some(base_url),
         model_catalog_url: None,

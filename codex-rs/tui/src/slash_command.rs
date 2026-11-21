@@ -44,6 +44,7 @@ pub enum SlashCommand {
     Plan,
     Voice,
     Goal,
+    Rsi,
     Agents,
     Side,
     Btw,
@@ -144,6 +145,7 @@ impl SlashCommand {
             SlashCommand::Plan => "switch to Plan mode",
             SlashCommand::Voice => "start or stop voice; use /voice settings to choose a voice",
             SlashCommand::Goal => "set or view the goal for a long-running task",
+            SlashCommand::Rsi => "start or manage continuing research over project experience",
             SlashCommand::Agents => "open the agent command center",
             SlashCommand::MultiAgents => "switch between this session's subagents",
             SlashCommand::Side | SlashCommand::Btw => "start a side conversation",
@@ -186,6 +188,7 @@ impl SlashCommand {
                 | SlashCommand::Fork
                 | SlashCommand::Plan
                 | SlashCommand::Goal
+                | SlashCommand::Rsi
                 | SlashCommand::Voice
                 | SlashCommand::Ide
                 | SlashCommand::Keymap
@@ -245,6 +248,7 @@ impl SlashCommand {
                 | SlashCommand::Rc
                 | SlashCommand::Warnings
                 | SlashCommand::DebugConfig
+                | SlashCommand::Rsi
                 | SlashCommand::Pwd
                 | SlashCommand::Rollout
                 | SlashCommand::Copy
@@ -301,6 +305,7 @@ impl SlashCommand {
             | SlashCommand::Stop
             | SlashCommand::App
             | SlashCommand::Goal
+            | SlashCommand::Rsi
             | SlashCommand::Voice
             | SlashCommand::Mcp
             | SlashCommand::Apps
@@ -323,6 +328,9 @@ impl SlashCommand {
 
     fn is_visible(self) -> bool {
         match self {
+            SlashCommand::Rsi => {
+                cfg!(unix) && crate::research_control::configured_socket().is_some()
+            }
             SlashCommand::Copy => !cfg!(target_os = "android"),
             SlashCommand::App => cfg!(any(target_os = "macos", target_os = "windows")),
             SlashCommand::Voice => true,

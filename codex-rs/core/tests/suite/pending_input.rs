@@ -83,8 +83,12 @@ async fn idle_user_input_reaches_the_first_model_request_in_plan_mode() -> anyho
     assert_idle_user_input_reaches_the_first_model_request(ModeKind::Plan).await
 }
 
+#[test_case(false; "message_context")]
+#[test_case(true; "tool_context")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn idle_response_items_include_pending_mailbox_in_first_request() -> anyhow::Result<()> {
+async fn idle_response_items_include_pending_mailbox_in_first_request(
+    tool_outputs: bool,
+) -> anyhow::Result<()> {
     let server = responses::start_mock_server().await;
     let response = responses::mount_sse_once(
         &server,
@@ -94,14 +98,32 @@ async fn idle_response_items_include_pending_mailbox_in_first_request() -> anyho
         ]),
     )
     .await;
-    let test = test_codex().build_with_auto_env(&server).await?;
+    let test = test_codex()
+        .with_config(move |config| {
+            config
+                .features
+                .set_enabled(Feature::UntrustedAsToolOutput, tool_outputs)
+                .expect("test config should allow feature update");
+        })
+        .build_with_auto_env(&server)
+        .await?;
 
     submit_queue_only_agent_mail(test.codex.as_ref(), "pending mailbox input").await;
     let submission = test
         .codex
-        .start_turn_if_idle(TurnInputRequest::new(TurnInput::ResponseItem(
-            responses::user_message_item("automatic response item"),
-        )))
+        .start_turn_if_idle(
+            TurnInputRequest::new(TurnInput::ResponseItem(responses::user_message_item(
+                "automatic response item",
+            )))
+            .with_additional_context(std::collections::BTreeMap::from([(
+                "worker_packet".to_string(),
+                codex_protocol::protocol::AdditionalContextEntry {
+                    name: None,
+                    value: "context required by the automatic instruction".to_string(),
+                    kind: codex_protocol::protocol::AdditionalContextKind::Untrusted,
+                },
+            )])),
+        )
         .await?;
     let StartIfIdleSubmission::Started { turn_id, .. } = submission else {
         panic!("automatic input should start a turn");
@@ -109,6 +131,26 @@ async fn idle_response_items_include_pending_mailbox_in_first_request() -> anyho
     wait_for_turn_complete(test.codex.as_ref()).await;
 
     let request = response.single_request();
+    if tool_outputs {
+        assert!(
+            request
+                .inputs_of_type("function_call_output")
+                .iter()
+                .any(|item| {
+                    item["name"] == "worker_packet"
+                        && item["namespace"] == "agent"
+                        && item.get("call_id").is_none()
+                        && item["output"] == "context required by the automatic instruction"
+                })
+        );
+    } else {
+        assert!(request.has_content_kinds(&["additional_content.worker_packet"]));
+        assert!(
+            request.message_input_texts("user").iter().any(|message| {
+                message.contains("context required by the automatic instruction")
+            })
+        );
+    }
     let request_body = request.body_json();
     responses::assert_root_turn(&request_body, Some(&turn_id))?;
     responses::assert_parent_turn(&request_body, /*expected*/ None)?;
@@ -957,6 +999,7 @@ async fn plugin_wait_wakes_on_turn_input(
             .submit(Op::DynamicToolResponse {
                 id: call_id.to_string(),
                 response: DynamicToolResponse {
+                    structured_content: None,
                     content_items: vec![DynamicToolCallOutputContentItem::InputText {
                         text: message.to_string(),
                     }],
@@ -2010,6 +2053,7 @@ async fn steers_during_tool_drain_preserve_tool_output_and_each_input() {
         .submit(Op::DynamicToolResponse {
             id: tool_request.call_id,
             response: DynamicToolResponse {
+                structured_content: None,
                 content_items: vec![DynamicToolCallOutputContentItem::InputText {
                     text: "held tool result".to_string(),
                 }],
@@ -2181,6 +2225,7 @@ async fn steers_yield_exec_and_wait_without_stopping_the_cell(instant_interrupt:
             .submit(Op::DynamicToolResponse {
                 id: tool_request.call_id,
                 response: DynamicToolResponse {
+                    structured_content: None,
                     content_items: vec![DynamicToolCallOutputContentItem::InputText {
                         text: "released".into(),
                     }],
@@ -2216,6 +2261,7 @@ async fn steers_yield_exec_and_wait_without_stopping_the_cell(instant_interrupt:
         .submit(Op::DynamicToolResponse {
             id: tool_request.call_id,
             response: DynamicToolResponse {
+                structured_content: None,
                 content_items: vec![DynamicToolCallOutputContentItem::InputText {
                     text: "released".into(),
                 }],
@@ -2457,6 +2503,7 @@ async fn input_preempts_response_and_yields_running_code_mode_call() {
         .submit(Op::DynamicToolResponse {
             id: held_tool.call_id,
             response: DynamicToolResponse {
+                structured_content: None,
                 content_items: vec![DynamicToolCallOutputContentItem::InputText {
                     text: "released".into(),
                 }],

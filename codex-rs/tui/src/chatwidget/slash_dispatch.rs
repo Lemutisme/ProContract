@@ -42,6 +42,34 @@ const RAW_USAGE: &str = "Usage: /raw [on|off]";
 const USAGE_CHATGPT_LOGIN_REQUIRED: &str = "Sign in with ChatGPT to use /usage.";
 
 impl ChatWidget {
+    fn dispatch_research_control(&mut self, args: &str) {
+        let Some(path) = crate::research_control::configured_socket() else {
+            self.add_error_message("No local research control endpoint is configured.".to_string());
+            return;
+        };
+        let request = match crate::research_control::Request::parse(
+            args,
+            self.thread_id.map(|id| id.to_string()),
+        ) {
+            Ok(request) => request,
+            Err(error) => {
+                self.add_error_message(error);
+                return;
+            }
+        };
+        let tx = self.app_event_tx.clone();
+        tokio::spawn(async move {
+            match crate::research_control::request(&path, &request).await {
+                Ok(message) => tx.send(AppEvent::InsertHistoryCell(Box::new(
+                    history_cell::new_info_event(message, None),
+                ))),
+                Err(error) => tx.send(AppEvent::InsertHistoryCell(Box::new(
+                    history_cell::new_error_event(error),
+                ))),
+            }
+        });
+    }
+
     /// Dispatch a bare slash command and record its staged local-history entry.
     ///
     /// The composer stages history before returning `InputResult::Command`; this wrapper commits
@@ -398,6 +426,7 @@ impl ChatWidget {
                     );
                 }
             }
+            SlashCommand::Rsi => self.dispatch_research_control(""),
             SlashCommand::Voice => {
                 self.app_event_tx.send(AppEvent::VoiceControl {
                     thread_id: self.thread_id(),
@@ -809,6 +838,7 @@ impl ChatWidget {
             return;
         }
         match cmd {
+            SlashCommand::Rsi => self.dispatch_research_control(trimmed),
             SlashCommand::Rc => self.add_error_message(
                 "Open /rc and choose Disable to turn off remote control.".into(),
             ),
@@ -1328,6 +1358,7 @@ impl ChatWidget {
         }
         match cmd {
             SlashCommand::Ide
+            | SlashCommand::Rsi
             | SlashCommand::Status
             | SlashCommand::Daemon
             | SlashCommand::Rc

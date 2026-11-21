@@ -1,0 +1,34 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "codex-pro-contract-store"
+version.workspace = true
+
+[lib]
+name = "codex_pro_contract_store"
+path = "src/lib.rs"
+doctest = false
+
+[[bin]]
+name = "pro-contract-store"
+path = "src/bin/pro_contract_store.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+clap = { workspace = true, features = ["derive"] }
+codex-utils-absolute-path = { workspace = true }
+codex-pro-contract = { workspace = true }
+codex-state = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+sqlx = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["fs", "macros", "rt"] }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

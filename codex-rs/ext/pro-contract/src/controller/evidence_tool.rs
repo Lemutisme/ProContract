@@ -1,0 +1,279 @@
+//! Codex tool adapter. Query semantics and task scoping live in the read-only archive.
+
+use std::sync::Arc;
+
+use codex_extension_api::ExtensionData;
+use codex_extension_api::FunctionCallError;
+use codex_extension_api::JsonToolOutput;
+use codex_extension_api::ResponsesApiTool;
+use codex_extension_api::ToolCall;
+use codex_extension_api::ToolContributor;
+use codex_extension_api::ToolExecutor;
+use codex_extension_api::ToolExecutorFuture;
+use codex_extension_api::ToolName;
+use codex_extension_api::ToolOutput;
+use codex_extension_api::ToolSpec;
+use codex_extension_api::parse_tool_input_schema;
+use serde_json::json;
+
+use super::archive::EvidenceAccess;
+use super::archive::Query;
+
+const NAME: &str = "contract_read_evidence";
+
+fn access_context(
+    thread: &str,
+    turn: &str,
+    call: &str,
+    source: &codex_extension_api::ToolCallSource,
+) -> serde_json::Value {
+    let source = match source {
+        codex_extension_api::ToolCallSource::Direct => json!({"kind":"direct"}),
+        codex_extension_api::ToolCallSource::CodeMode {
+            cell_id,
+            runtime_tool_call_id,
+        } => {
+            json!({"kind":"code_mode","cell_id":cell_id,"runtime_tool_call_id":runtime_tool_call_id})
+        }
+    };
+    json!({"thread_id":thread,"turn_id":turn,"call_id":call,"source":source})
+}
+
+pub(crate) struct EvidenceTools;
+
+impl ToolContributor for EvidenceTools {
+    fn tools(
+        &self,
+        _session: &ExtensionData,
+        thread: &ExtensionData,
+    ) -> Vec<Arc<dyn for<'call> ToolExecutor<ToolCall<'call>>>> {
+        let access = thread.get::<EvidenceAccess>();
+        let mut tools: Vec<Arc<dyn for<'call> ToolExecutor<ToolCall<'call>>>> =
+            access.map_or_else(Vec::new, |access| {
+                vec![
+                    Arc::new(EvidenceTool(access, thread.level_id().to_string()))
+                        as Arc<dyn for<'call> ToolExecutor<ToolCall<'call>>>,
+                ]
+            });
+        if let Some(runtime) = thread.get::<super::runtime::ThreadRuntime>()
+            && runtime.progress_enabled()
+        {
+            tools.push(Arc::new(ProgressTool(Arc::clone(&runtime), None)));
+            tools.push(Arc::new(ProgressStatusTool(runtime, None)));
+        } else if let Some(access) = thread.get::<ProgressAccess>()
+            && let Some(runtime) = access.runtime.upgrade()
+        {
+            let owner = Some((access.epoch, access.deadline_ms));
+            tools.push(Arc::new(ProgressTool(Arc::clone(&runtime), owner)));
+            tools.push(Arc::new(ProgressStatusTool(runtime, owner)));
+        }
+        tools
+    }
+}
+
+struct EvidenceTool(Arc<EvidenceAccess>, String);
+
+impl codex_extension_api::ToolLifecycleContributor for EvidenceTools {
+    fn on_tool_finish<'a>(
+        &'a self,
+        input: codex_extension_api::ToolFinishInput<'a>,
+    ) -> codex_extension_api::ToolLifecycleFuture<'a> {
+        Box::pin(async move {
+            if input.tool_name.clone().with_default_namespace()
+                != ToolName::plain(NAME).with_default_namespace()
+            {
+                return;
+            }
+            if let Some(access) = input.thread_store.get::<EvidenceAccess>() {
+                let caller = access_context(
+                    input.thread_store.level_id(),
+                    input.turn_id,
+                    input.call_id,
+                    &input.source,
+                );
+                use super::observations::AccessOutcome;
+                use codex_extension_api::ToolCallOutcome;
+                let outcome = match input.outcome {
+                    ToolCallOutcome::Completed { success: true } => AccessOutcome::Completed,
+                    ToolCallOutcome::Completed { success: false } => AccessOutcome::Unsuccessful,
+                    ToolCallOutcome::Blocked => AccessOutcome::Blocked,
+                    ToolCallOutcome::Failed { .. } => AccessOutcome::Failed,
+                    ToolCallOutcome::Aborted => AccessOutcome::Aborted,
+                };
+                if let Err(reason) = access.finish_access(caller, outcome).await {
+                    // A prepared response without a finish remains explicitly unconfirmed.
+                    tracing::warn!(
+                        "pro_contract could not retain evidence-access completion: {reason}"
+                    );
+                }
+            }
+        })
+    }
+}
+
+impl<'call> ToolExecutor<ToolCall<'call>> for EvidenceTool {
+    fn tool_name(&self) -> ToolName {
+        ToolName::plain(NAME)
+    }
+
+    fn spec(&self) -> ToolSpec {
+        ToolSpec::Function(ResponsesApiTool {
+            name: NAME.into(),
+            description: "Read this task's immutable public evidence. sources lists any invocation-bound short source IDs with their original handles/subjects; these do not follow later records. frontier lists unresolved registered checks; index lists retained assessments; read accepts either an exact indexed handle or one offered source_id. Offsets are UTF-8 bytes for read, entries otherwise. Follow pages to eof. Capture omissions remain. Sealed checks are excluded; reading grants no authority or completion.".into(),
+            strict: false, defer_loading: None, output_schema: None,
+            parameters: parse_tool_input_schema(&json!({
+                "type":"object", "properties":{
+                    "op":{"type":"string", "enum":["index","frontier","sources","read"]},
+                    "handle":{"type":"string", "description":"Exact task-public handle; mutually exclusive with source_id."},
+                    "source_id":{"type":"string", "description":"Short name from this invocation's source catalog; mutually exclusive with handle."},
+                    "offset":{"type":"integer", "minimum":0}
+                }, "required":["op"], "additionalProperties":false
+            })).unwrap_or_else(|error| panic!("public evidence schema must parse: {error}")),
+        })
+    }
+
+    fn supports_parallel_tool_calls(&self) -> bool {
+        true
+    }
+
+    fn handle<'a>(&'a self, call: ToolCall<'call>) -> ToolExecutorFuture<'a>
+    where
+        'call: 'a,
+    {
+        Box::pin(async move {
+            let raw = call.function_arguments()?;
+            let error = FunctionCallError::RespondToModel;
+            if raw.len() > 4096 {
+                return Err(error("evidence query exceeds 4 KiB".into()));
+            }
+            let query: Query = serde_json::from_str(raw).map_err(|e| error(e.to_string()))?;
+            let value = self
+                .0
+                .read_observed(
+                    query,
+                    call.response_byte_budget(8192),
+                    access_context(&self.1, &call.turn_id, &call.call_id, &call.source),
+                )
+                .await
+                .map_err(error)?;
+            Ok(Box::new(JsonToolOutput::new(value).with_external_context()) as Box<dyn ToolOutput>)
+        })
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct ProgressAccess {
+    pub runtime: std::sync::Weak<super::runtime::ThreadRuntime>,
+    pub epoch: u64,
+    pub deadline_ms: Option<u64>,
+}
+
+struct ProgressTool(
+    Arc<super::runtime::ThreadRuntime>,
+    Option<(u64, Option<u64>)>,
+);
+impl<'call> ToolExecutor<ToolCall<'call>> for ProgressTool {
+    fn tool_name(&self) -> ToolName {
+        ToolName::plain("publish_progress")
+    }
+    fn spec(&self) -> ToolSpec {
+        ToolSpec::Function(ResponsesApiTool {
+            name: "publish_progress".into(),
+            description: "Capture a consistent frozen workspace and assess it under the original task authority. review=true requests independent diagnosis; question focuses it and continue_from supplies historical context. Complete checks may be reused only for the same subject, policy and environment. assessment_secs allocates action time within any original hard deadline; budget.deadline_ms=null means no task deadline. Stop background jobs first. Repeating request_id with the original options waits for its still-owned operation or recalls its result, without replay or a renewed grant. progress_status returns the original options and owner state after a lost response; changed options need a new ID after prior effects resolve. Read retained results with contract_read_evidence. This operation does not propose, grant Support, settle or finish the task.".into(),
+            strict: false, defer_loading: None, output_schema: None,
+            parameters: parse_tool_input_schema(&json!({"type":"object","properties":{
+                "request_id":{"type":"string","minLength":1,"maxLength":128},
+                "review":{"type":"boolean","description":"Request independent diagnosis of this snapshot in addition to its public checks; defaults to false."},
+                "question":{"type":"string","description":"The uncertainty this diagnosis should investigate; requires review=true."},
+                "continue_from":{"type":"string","description":"A prior public progress or diagnostic checkpoint handle from this task; requires review=true. Its judgments remain historical."},
+                "assessment_secs":{"type":"integer","minimum":1,"description":"Requested action time; clamped to the original remaining task/owner grant. Omit to use the configured default."}},
+                "required":["request_id"],"additionalProperties":false})).unwrap_or_else(|error| panic!("static progress schema must parse: {error}")),
+        })
+    }
+    fn supports_parallel_tool_calls(&self) -> bool {
+        false
+    }
+    fn handle<'a>(&'a self, call: ToolCall<'call>) -> ToolExecutorFuture<'a>
+    where
+        'call: 'a,
+    {
+        Box::pin(async move {
+            #[derive(serde::Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Request {
+                request_id: String,
+                #[serde(flatten)]
+                assessment: super::runtime::ProgressAssessment,
+            }
+            let raw = call.function_arguments()?;
+            let error = FunctionCallError::RespondToModel;
+            if raw.len() > 16_384 {
+                return Err(error("publication request exceeds 16 KiB".into()));
+            }
+            let request: Request = serde_json::from_str(raw).map_err(|e| error(e.to_string()))?;
+            let mut value = self
+                .0
+                .publish_assessment(request.request_id, call.turn_id, self.1, request.assessment)
+                .await
+                .map_err(error)?;
+            if let Ok(budget) = self.0.remaining_task_budget().await {
+                value["budget"] = budget;
+            }
+            Ok(Box::new(JsonToolOutput::new(value).with_external_context()) as Box<dyn ToolOutput>)
+        })
+    }
+}
+
+struct ProgressStatusTool(
+    Arc<super::runtime::ThreadRuntime>,
+    Option<(u64, Option<u64>)>,
+);
+
+impl<'call> ToolExecutor<ToolCall<'call>> for ProgressStatusTool {
+    fn tool_name(&self) -> ToolName {
+        ToolName::plain("progress_status")
+    }
+
+    fn spec(&self) -> ToolSpec {
+        ToolSpec::Function(ResponsesApiTool {
+            name: "progress_status".into(),
+            description: "Read this task's publication status without starting work. Omit request_id for the pending/latest operation. Running status includes its original assessment_request, execution epoch and action deadline; repeat publish_progress with those exact options to wait for the same owner. Completed status points to retained evidence. Unresolved means ownership/effects are not proven resolved, not permission to replay or clear pending. This query never renews resources or certifies completion.".into(),
+            strict: false, defer_loading: None, output_schema: None,
+            parameters: parse_tool_input_schema(&json!({"type":"object","properties":{
+                "request_id":{"type":"string","minLength":1,"maxLength":128}},
+                "additionalProperties":false})).unwrap_or_else(|error| panic!("static publication status schema must parse: {error}")),
+        })
+    }
+
+    fn supports_parallel_tool_calls(&self) -> bool {
+        true
+    }
+
+    fn handle<'a>(&'a self, call: ToolCall<'call>) -> ToolExecutorFuture<'a>
+    where
+        'call: 'a,
+    {
+        Box::pin(async move {
+            #[derive(serde::Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Request {
+                request_id: Option<String>,
+            }
+            let raw = call.function_arguments()?;
+            let error = FunctionCallError::RespondToModel;
+            if raw.len() > 4096 {
+                return Err(error("publication status query exceeds 4 KiB".into()));
+            }
+            let request: Request = serde_json::from_str(raw).map_err(|e| error(e.to_string()))?;
+            let mut value = self
+                .0
+                .publication_status(request.request_id, self.1)
+                .await
+                .map_err(error)?;
+            if let Ok(budget) = self.0.remaining_task_budget().await {
+                value["budget"] = budget;
+            }
+            Ok(Box::new(JsonToolOutput::new(value).with_external_context()) as Box<dyn ToolOutput>)
+        })
+    }
+}

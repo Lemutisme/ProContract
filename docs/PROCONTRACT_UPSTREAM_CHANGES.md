@@ -1,0 +1,122 @@
+# Files changed from upstream Codex
+
+ProContract is built on OpenAI Codex. Relative to the upstream base commit `583ec348cf9007361d09513c716549c41d4d8128`,
+the following 80 upstream files are modified. Everything under `codex-rs/pro-contract/`,
+`codex-rs/pro-contract-store/`, `codex-rs/ext/pro-contract/`, `harness/`, `strategies/` and the
+`scripts/procontract_*` and `scripts/procodex*` files is new.
+
+- `NOTICE`
+- `README.md`
+- `codex-rs/Cargo.lock`
+- `codex-rs/Cargo.toml`
+- `codex-rs/app-server-protocol/schema/precomputed/app-server-exports-experimental.json.zst`
+- `codex-rs/app-server-protocol/schema/precomputed/app-server-exports-stable.json.zst`
+- `codex-rs/app-server-protocol/schema/typescript/InternalSessionSource.ts`
+- `codex-rs/app-server/Cargo.toml`
+- `codex-rs/app-server/src/dynamic_tools.rs`
+- `codex-rs/app-server/src/extensions.rs`
+- `codex-rs/app-server/src/request_processors/thread_processor_tests.rs`
+- `codex-rs/arg0/Cargo.toml`
+- `codex-rs/arg0/src/lib.rs`
+- `codex-rs/cli/src/doctor/thread_inventory.rs`
+- `codex-rs/config/src/thread_config.rs`
+- `codex-rs/config/src/thread_config/remote.rs`
+- `codex-rs/core/Cargo.toml`
+- `codex-rs/core/config.schema.json`
+- `codex-rs/core/src/context_manager/history.rs`
+- `codex-rs/core/src/context_manager/history_tests.rs`
+- `codex-rs/core/src/context_manager/history_user_authorization.rs`
+- `codex-rs/core/src/hook_environment_executor.rs`
+- `codex-rs/core/src/responses_retry.rs`
+- `codex-rs/core/src/responses_retry_tests.rs`
+- `codex-rs/core/src/tasks/lifecycle.rs`
+- `codex-rs/core/src/tasks/mod.rs`
+- `codex-rs/core/src/tools/handlers/dynamic.rs`
+- `codex-rs/core/src/tools/handlers/dynamic_tests.rs`
+- `codex-rs/core/src/unified_exec/process.rs`
+- `codex-rs/core/tests/responses_headers.rs`
+- `codex-rs/core/tests/suite/agent_websocket.rs`
+- `codex-rs/core/tests/suite/audio_truncation.rs`
+- `codex-rs/core/tests/suite/client.rs`
+- `codex-rs/core/tests/suite/client_websockets.rs`
+- `codex-rs/core/tests/suite/code_mode.rs`
+- `codex-rs/core/tests/suite/code_mode_dynamic_tools_tests.rs`
+- `codex-rs/core/tests/suite/dynamic_tool_cancellation.rs`
+- `codex-rs/core/tests/suite/host_turn_admission.rs`
+- `codex-rs/core/tests/suite/model_request.rs`
+- `codex-rs/core/tests/suite/pending_input.rs`
+- `codex-rs/core/tests/suite/scenarios.rs`
+- `codex-rs/core/tests/suite/scenarios_agent_eviction_tests.rs`
+- `codex-rs/core/tests/suite/scenarios_audio_file_tests.rs`
+- `codex-rs/core/tests/suite/scenarios_dynamic_tools.rs`
+- `codex-rs/core/tests/suite/scenarios_reserved_spawn.rs`
+- `codex-rs/core/tests/suite/search_tool.rs`
+- `codex-rs/core/tests/suite/step_settings.rs`
+- `codex-rs/core/tests/suite/stream_error_allows_next_turn.rs`
+- `codex-rs/core/tests/suite/stream_no_completed.rs`
+- `codex-rs/core/tests/suite/subagent_dynamic_tools.rs`
+- `codex-rs/core/tests/suite/turn_phase_trace.rs`
+- `codex-rs/exec-server-cli/src/command.rs`
+- `codex-rs/exec-server-protocol/src/protocol.rs`
+- `codex-rs/exec-server/src/client.rs`
+- `codex-rs/exec-server/src/client_recovery.rs`
+- `codex-rs/exec-server/src/local_process.rs`
+- `codex-rs/exec-server/src/process.rs`
+- `codex-rs/exec-server/src/runtime_options.rs`
+- `codex-rs/exec-server/tests/accepted_websocket.rs`
+- `codex-rs/exec-server/tests/exec_process.rs`
+- `codex-rs/ext/extension-api/src/contributors/turn_lifecycle.rs`
+- `codex-rs/ext/goal/tests/goal_extension_backend.rs`
+- `codex-rs/features/src/lib.rs`
+- `codex-rs/history/src/lib.rs`
+- `codex-rs/history/src/retained_assistant_messages.rs`
+- `codex-rs/history/src/retained_context.rs`
+- `codex-rs/history/src/retained_context_tests.rs`
+- `codex-rs/login/src/auth_env_telemetry.rs`
+- `codex-rs/model-provider-info/src/lib.rs`
+- `codex-rs/model-provider-info/src/model_provider_info_tests.rs`
+- `codex-rs/model-provider/src/provider_tests.rs`
+- `codex-rs/protocol/src/dynamic_tools.rs`
+- `codex-rs/protocol/src/protocol.rs`
+- `codex-rs/rmcp-client/src/executor_process_transport.rs`
+- `codex-rs/tui/src/chatwidget/slash_dispatch.rs`
+- `codex-rs/tui/src/lib.rs`
+- `codex-rs/tui/src/slash_command.rs`
+- `defs.bzl`
+- `docs/slash_commands.md`
+- `package.json`
+
+The upstream workflow files below are kept under `ci/upstream-workflows/` instead of `.github/workflows/`,
+so that upstream's continuous integration does not run in this fork:
+
+- `.github/workflows/Dockerfile.bazel`
+- `.github/workflows/README.md`
+- `.github/workflows/bazel.yml`
+- `.github/workflows/blob-size-policy.yml`
+- `.github/workflows/blocking-ci.yml`
+- `.github/workflows/cargo-deny.yml`
+- `.github/workflows/cla.yml`
+- `.github/workflows/close-stale-contributor-prs.yml`
+- `.github/workflows/codespell.yml`
+- `.github/workflows/issue-deduplicator.yml`
+- `.github/workflows/issue-labeler.yml`
+- `.github/workflows/issue-translator.yml`
+- `.github/workflows/postmerge-ci.yml`
+- `.github/workflows/python-runtime-build.yml`
+- `.github/workflows/python-runtime-release.yml`
+- `.github/workflows/python-sdk-build.yml`
+- `.github/workflows/python-sdk-cli-release.yml`
+- `.github/workflows/python-sdk-release.yml`
+- `.github/workflows/r2-release.yml`
+- `.github/workflows/repo-checks.yml`
+- `.github/workflows/rust-ci-full-nextest-platform.yml`
+- `.github/workflows/rust-ci-full.yml`
+- `.github/workflows/rust-ci.yml`
+- `.github/workflows/rust-release-argument-comment-lint.yml`
+- `.github/workflows/rust-release-provisioned-macos.yml`
+- `.github/workflows/rust-release-windows.yml`
+- `.github/workflows/rust-release.yml`
+- `.github/workflows/rusty-v8-release.yml`
+- `.github/workflows/sdk.yml`
+- `.github/workflows/v8-canary.yml`
+- `.github/workflows/zstd`

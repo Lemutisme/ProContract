@@ -321,6 +321,7 @@ async fn root_denial_and_interruption_retain_input_and_grants_span_execution() -
         .submit(Op::DynamicToolResponse {
             id: "hold".into(),
             response: DynamicToolResponse {
+                structured_content: None,
                 content_items: vec![],
                 success: true,
             },

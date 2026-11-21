@@ -1,0 +1,775 @@
+//! The container check pipeline: one fresh, network-less container builds a private copy of the
+//! candidate, runs its own tests when asked, then runs every case, public then sealed, through one
+//! case runner and reports one result line per step.
+//!
+//! The case runner gives both programs the same world: the same working directory, rebuilt before
+//! every run from the base workspace and the case's fixtures, the same program path, environment
+//! and stdin. It runs the reference, the candidate, then the reference again; a channel (exit
+//! status, stdout, stderr, the resulting files) counts only when the two reference runs agree on it.
+
+use std::path::Path;
+use std::path::PathBuf;
+
+use codex_pro_contract::Digest;
+use serde::Deserialize;
+use serde::Serialize;
+
+use crate::CheckEnvironment;
+use crate::DifferentialCase;
+use crate::EvidencePolicy;
+use crate::digest_of;
+
+/// Seconds each run of one case may take.
+const CASE_TIMEOUT_SECS: u64 = 10;
+/// Candidate timeouts after which the remaining cases are blocked without inventing results.
+/// Bytes of log kept per step.
+const STEP_DETAIL_CAP: usize = 4000;
+/// Bytes of each stream kept per observation, head and tail, so a long `--help` keeps its option
+/// list and its closing sections. Observations feed the prober only; comparisons use their own diff.
+const OBSERVATION_STREAM_CAP: usize = 16384;
+/// Where the pipeline copies the candidate before building it.
+const WORK_DIR: &str = "/tmp/pc-work";
+/// Where the base workspace is mounted, read-only.
+const BASE_MOUNT: &str = "/pc-base";
+/// Where the pipeline script and the case inputs are mounted, read-only.
+const PIPELINE_MOUNT: &str = "/pc";
+const INVOCATION_RUNNER: &str = include_str!("invocation.py");
+const PROGRAM_ENV: &[(&str, &str)] = &[
+    (
+        "PATH",
+        "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    ),
+    ("LANG", "C.UTF-8"),
+    ("TZ", "UTC"),
+    ("HOME", "/tmp/pc-home"),
+];
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StepOutcome {
+    Pass,
+    Fail,
+    /// A failed build or repeated timeout prevented this case from executing.
+    Blocked,
+    /// The reference disagreed with itself on its exit status or timed out: no evidence.
+    Unqualified,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StepReceipt {
+    /// `build`, `candidate_tests`, `public:<case id>` or `sealed:<case id>`.
+    pub step: String,
+    pub outcome: StepOutcome,
+    pub detail: String,
+    /// A complete individual check, independent of whether later checks ran.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub complete: bool,
+    /// The channels on which the two reference runs agreed: `rc`, `out`, `err`, `files`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stable: Vec<String>,
+    /// The reference's exit status on a case.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reference_exit: Option<i32>,
+}
+
+impl StepReceipt {
+    pub fn new(step: impl Into<String>, outcome: StepOutcome, detail: impl Into<String>) -> Self {
+        Self {
+            step: step.into(),
+            outcome,
+            detail: detail.into(),
+            complete: true,
+            stable: Vec::new(),
+            reference_exit: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CheckReceipts {
+    pub steps: Vec<StepReceipt>,
+    /// Toolchain lines reported inside the container.
+    pub environment: Vec<String>,
+    /// Whether every expected step reported an outcome.
+    pub complete: bool,
+    pub environment_digest: Digest,
+    pub evaluator_digest: Digest,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution: Option<crate::ExecutionReceipt>,
+}
+
+/// The reference's behavior on one case, run twice.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Observation {
+    pub id: String,
+    pub exit: Option<i32>,
+    /// Whether both invocations completed and agreed on every channel.
+    pub stable: bool,
+    /// Channels that agreed across completed reference invocations. Older records omit it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stable_channels: Vec<String>,
+    pub stdout: String,
+    pub stderr: String,
+}
+
+impl Observation {
+    pub fn qualified(&self) -> bool {
+        self.exit.is_some()
+            && (self.stable || self.stable_channels.iter().any(|channel| channel == "rc"))
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ObservationBatch {
+    pub observations: Vec<Observation>,
+    pub complete: bool,
+    pub execution: Option<crate::ExecutionReceipt>,
+}
+
+impl std::ops::Deref for ObservationBatch {
+    type Target = [Observation];
+    fn deref(&self) -> &[Observation] {
+        &self.observations
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum CheckError {
+    #[error("check container failed to run: {0}")]
+    Launch(String),
+    #[error("check pipeline exceeded its timeout")]
+    TimedOut,
+}
+
+/// The two partitions of an evidence policy's cases.
+pub(crate) const PUBLIC: &str = "public";
+pub(crate) const SEALED: &str = "sealed";
+
+/// Quotes one shell word with single quotes.
+pub(crate) fn shell_quote(word: &str) -> String {
+    format!("'{}'", word.replace('\'', "'\\''"))
+}
+
+/// The candidate program as an absolute path inside the container.
+fn candidate_path(policy: &EvidencePolicy, candidate_root: &str) -> Option<String> {
+    let command = policy.candidate_command.as_deref()?;
+    Some(if command.starts_with('/') {
+        command.to_string()
+    } else {
+        format!(
+            "{}/{}",
+            candidate_root.trim_end_matches('/'),
+            command.trim_start_matches("./")
+        )
+    })
+}
+
+fn runs_cases(policy: &EvidencePolicy) -> bool {
+    policy.reference_command.is_some() && policy.candidate_command.is_some()
+}
+
+/// Every case of `policy` with its step name, public before sealed.
+pub(crate) fn cases(policy: &EvidencePolicy) -> Vec<(String, &DifferentialCase)> {
+    let public = policy
+        .differential
+        .iter()
+        .map(|case| (format!("{PUBLIC}:{}", case.id), case));
+    let sealed = policy
+        .sealed
+        .iter()
+        .map(|case| (format!("{SEALED}:{}", case.id), case));
+    public.chain(sealed).collect()
+}
+
+/// Shell functions shared by every pipeline script.
+pub(crate) const PRELUDE: &str = "set -u
+emit() { printf '@@PC %s %s\\n' \"$1\" \"$2\"; }
+log() { size=$(wc -c < \"$2\"); if [ \"$size\" -le 4000 ]; then cat \"$2\"; else head -c 2000 \"$2\"; printf '\\n[... %s bytes omitted ...]\\n' \"$((size - 4000))\"; tail -c 2000 \"$2\"; fi | awk -v prefix=\"@@LOG $1 \" '{ print prefix $0 }'; }
+step() { log_file=$1; shift; timeout \"$STEP_TIMEOUT\" \"$@\" > \"$log_file\" 2>&1; rc=$?; if [ $rc -eq 124 ]; then { echo \"timed out after $STEP_TIMEOUT s\"; cat \"$log_file\"; } > \"$log_file.t\"; mv \"$log_file.t\" \"$log_file\"; fi; return $rc; }
+for tool in 'rustc --version' 'cargo --version' 'uname -srm'; do printf '@@ENV %s\\n' \"$($tool 2>&1 | head -n 1)\"; done
+export CARGO_NET_OFFLINE=true
+";
+
+/// The case runner. `run_side INPUT PROGRAM OUT ARGS...` rebuilds the case directory from the base
+/// workspace and the case's fixtures, points the program path at PROGRAM and runs it with the
+/// case's environment and stdin, recording exit status, stdout, stderr and the resulting files.
+/// `run_case STEP INPUT RESULTS ARGS...` runs reference, candidate, reference and judges.
+const CASE_RUNNER: &str = include_str!("case_runner.sh");
+
+/// The invocation of one case in the pipeline: `FUNCTION NAME INPUT RESULTS ARGS...`.
+fn case_line(function: &str, name: &str, index: usize, case: &DifferentialCase) -> String {
+    let args = case
+        .args
+        .iter()
+        .map(|arg| shell_quote(arg))
+        .collect::<Vec<_>>()
+        .join(" ");
+    format!(
+        "{function} {} {PIPELINE_MOUNT}/cases/{index} /tmp/pc-diff/{index} {args}\n",
+        shell_quote(name)
+    )
+}
+
+fn runner_variables(reference: &str) -> String {
+    format!(
+        "CASE_TIMEOUT={CASE_TIMEOUT_SECS}\nOBSERVATION_CAP={OBSERVATION_STREAM_CAP}\nREFERENCE={}\n",
+        shell_quote(reference)
+    )
+}
+
+/// The ordered pipeline script for `policy`, run from `candidate_root` inside the container.
+pub(crate) fn pipeline_script(
+    policy: &EvidencePolicy,
+    candidate_root: &str,
+    step_timeout_secs: u64,
+) -> String {
+    let mut script = String::from(PRELUDE);
+    script.push_str(&format!("STEP_TIMEOUT={step_timeout_secs}\nbuilt=1\n"));
+    // Build in a private copy owned by the container user, as the evaluator builds in a
+    // workspace it owns; the mounted subject stays untouched.
+    script.push_str(&format!(
+        "rm -rf {WORK_DIR} && mkdir -p {WORK_DIR} && cp -R {}/. {WORK_DIR}/ || exit 90\ncd {WORK_DIR} || exit 90\n",
+        shell_quote(candidate_root)
+    ));
+    if let Some(build) = &policy.build_command {
+        let built = policy
+            .candidate_command
+            .as_deref()
+            .map(|command| format!(" && [ -x {} ]", shell_quote(command)))
+            .unwrap_or_default();
+        script.push_str(&format!(
+            "if step /tmp/pc-build.log sh -c {}{built}; then log build /tmp/pc-build.log; emit build pass; else log build /tmp/pc-build.log; emit build fail; built=0; fi\n",
+            shell_quote(build)
+        ));
+    }
+    if policy.candidate_tests {
+        script.push_str(
+            "if [ -f Cargo.toml ]; then if step /tmp/pc-test.log cargo test --offline --quiet; then log candidate_tests /tmp/pc-test.log; emit candidate_tests pass; else log candidate_tests /tmp/pc-test.log; emit candidate_tests fail; fi; else echo 'no Cargo.toml in the candidate' > /tmp/pc-test.log; log candidate_tests /tmp/pc-test.log; emit candidate_tests fail; fi\n",
+        );
+    }
+    if let (Some(reference), Some(candidate)) = (
+        policy.reference_command.as_deref(),
+        candidate_path(policy, WORK_DIR),
+    ) {
+        script.push_str(CASE_RUNNER);
+        script.push_str(&runner_variables(reference));
+        script.push_str(&format!("CANDIDATE={}\n", shell_quote(&candidate)));
+        for (index, (name, case)) in cases(policy).into_iter().enumerate() {
+            script.push_str(&case_line("run_case", &name, index, case));
+        }
+    }
+    script
+}
+
+/// The script that runs `cases` on the reference only, twice each.
+pub(crate) fn observe_script(reference: &str, cases: &[DifferentialCase]) -> String {
+    let mut script = String::from("set -u\n");
+    script.push_str(CASE_RUNNER);
+    script.push_str(&runner_variables(reference));
+    for (index, case) in cases.iter().enumerate() {
+        script.push_str(&case_line("observe_case", &case.id, index, case));
+    }
+    script
+}
+
+/// The steps a complete run of `policy` reports, in order.
+pub(crate) fn expected_steps(policy: &EvidencePolicy) -> Vec<String> {
+    let mut steps = Vec::new();
+    if policy.build_command.is_some() {
+        steps.push("build".to_string());
+    }
+    if policy.candidate_tests {
+        steps.push("candidate_tests".to_string());
+    }
+    if runs_cases(policy) {
+        steps.extend(cases(policy).into_iter().map(|(name, _)| name));
+    }
+    steps
+}
+
+/// Parses the pipeline's stdout into receipts, environment lines, and completeness.
+pub(crate) fn parse_output(
+    stdout: &str,
+    policy: &EvidencePolicy,
+) -> (Vec<StepReceipt>, Vec<String>, bool) {
+    let mut steps = Vec::new();
+    let expected = expected_steps(policy);
+    let mut environment = Vec::new();
+    let mut logs: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    for line in stdout.lines() {
+        if let Some(rest) = line.strip_prefix("@@ENV ") {
+            environment.push(rest.to_string());
+        } else if let Some(rest) = line.strip_prefix("@@LOG ") {
+            let (step, text) = rest.split_once(' ').unwrap_or((rest, ""));
+            let log = logs.entry(step.to_string()).or_default();
+            if log.len() < STEP_DETAIL_CAP {
+                log.push_str(text);
+                log.push('\n');
+            }
+        } else if let Some(rest) = line.strip_prefix("@@PC ") {
+            let mut fields = rest.split(' ');
+            let step = fields.next().unwrap_or_default().to_string();
+            let outcome = match fields.next() {
+                Some("pass") => StepOutcome::Pass,
+                Some("unqualified") => StepOutcome::Unqualified,
+                Some("blocked") => StepOutcome::Blocked,
+                Some("fail") => StepOutcome::Fail,
+                _ => return (Vec::new(), environment, false),
+            };
+            if expected.get(steps.len()) != Some(&step) {
+                return (Vec::new(), environment, false);
+            }
+            let stable = fields
+                .next()
+                .filter(|stable| *stable != "-")
+                .map(|stable| stable.split(',').map(str::to_string).collect())
+                .unwrap_or_default();
+            let reference_exit = fields.next().and_then(|exit| exit.parse().ok());
+            let detail = logs.remove(&step).unwrap_or_default();
+            steps.push(StepReceipt {
+                step,
+                outcome,
+                detail,
+                complete: true,
+                stable,
+                reference_exit,
+            });
+        }
+    }
+    let reported: Vec<String> = steps.iter().map(|step| step.step.clone()).collect();
+    let complete = reported == expected_steps(policy);
+    (steps, environment, complete)
+}
+
+/// Parses an observe script's stdout into one observation per reported case.
+pub(crate) fn parse_observations(stdout: &str) -> Vec<Observation> {
+    let mut streams: std::collections::HashMap<(String, bool), String> =
+        std::collections::HashMap::new();
+    let mut observations = Vec::new();
+    for line in stdout.lines() {
+        let (prefix, is_out) = if let Some(rest) = line.strip_prefix("@@OUT ") {
+            (rest, true)
+        } else if let Some(rest) = line.strip_prefix("@@ERR ") {
+            (rest, false)
+        } else if let Some(rest) = line.strip_prefix("@@OBS ") {
+            let mut fields = rest.split(' ');
+            let id = fields.next().unwrap_or_default().to_string();
+            let exit = fields.next().and_then(|exit| exit.parse().ok());
+            let state = fields.next();
+            let stable = state == Some("stable");
+            let stable_channels = fields
+                .next()
+                .filter(|_| matches!(state, Some("stable" | "unstable")))
+                .filter(|text| *text != "-")
+                .map(|text| text.split(',').map(str::to_string).collect())
+                .unwrap_or_default();
+            observations.push(Observation {
+                stdout: streams.remove(&(id.clone(), true)).unwrap_or_default(),
+                stderr: streams.remove(&(id.clone(), false)).unwrap_or_default(),
+                id,
+                exit,
+                stable,
+                stable_channels,
+            });
+            continue;
+        } else {
+            continue;
+        };
+        let (id, text) = prefix.split_once(' ').unwrap_or((prefix, ""));
+        let stream = streams.entry((id.to_string(), is_out)).or_default();
+        stream.push_str(text);
+        stream.push('\n');
+    }
+    observations
+}
+
+/// A fixture path as a relative path that cannot leave the case directory.
+pub(crate) fn safe_relative(path: &str) -> Option<&Path> {
+    // Normalize a leading current-directory component without reinterpreting
+    // duplicate separators as an absolute path. Roots and parents still fail.
+    let candidate = Path::new(path);
+    let candidate = candidate.strip_prefix(".").unwrap_or(candidate);
+    let plain = !candidate.as_os_str().is_empty()
+        && candidate
+            .components()
+            .all(|component| matches!(component, std::path::Component::Normal(_)));
+    plain.then_some(candidate)
+}
+
+/// Writes one case's stdin, environment and fixtures under `dir`.
+fn write_case_inputs(dir: &Path, case: &DifferentialCase) -> std::io::Result<()> {
+    let invalid = |path: &str| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!(
+                "case {}: fixture path {path:?} leaves the case directory",
+                case.id
+            ),
+        )
+    };
+    let fixture = dir.join("fixture");
+    std::fs::create_dir_all(&fixture)?;
+    std::fs::write(dir.join("stdin"), case.stdin.as_deref().unwrap_or(""))?;
+    if let Some(terminal) = &case.terminal {
+        let config = serde_json::json!({"terminal": terminal, "piped_stdin": case.stdin.is_some()});
+        std::fs::write(dir.join("terminal.json"), serde_json::to_vec(&config)?)?;
+    }
+    let mut program_env: std::collections::BTreeMap<String, String> = PROGRAM_ENV
+        .iter()
+        .map(|(key, value)| (key.to_string(), value.to_string()))
+        .collect();
+    program_env.extend(case.env.clone());
+    let env: String = program_env
+        .iter()
+        .map(|(key, value)| format!("{key}={value}\n"))
+        .collect();
+    std::fs::write(dir.join("env"), env)?;
+    for path in &case.dirs {
+        let relative = safe_relative(path).ok_or_else(|| invalid(path))?;
+        std::fs::create_dir_all(fixture.join(relative))?;
+    }
+    for file in &case.files {
+        let relative = safe_relative(&file.path).ok_or_else(|| invalid(&file.path))?;
+        let target = fixture.join(relative);
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(target, file.content())?;
+    }
+    Ok(())
+}
+
+/// Writes the script and every case's inputs into a fresh pipeline directory.
+async fn write_pipeline(
+    pipeline_dir: &Path,
+    script: &str,
+    cases: Vec<DifferentialCase>,
+) -> Result<(), CheckError> {
+    let pipeline_dir = pipeline_dir.to_path_buf();
+    let script = script.to_string();
+    tokio::task::spawn_blocking(move || {
+        let _ = std::fs::remove_dir_all(&pipeline_dir);
+        std::fs::create_dir_all(&pipeline_dir)?;
+        std::fs::write(pipeline_dir.join("pipeline.sh"), script)?;
+        std::fs::write(pipeline_dir.join("invocation.py"), INVOCATION_RUNNER)?;
+        for (index, case) in cases.iter().enumerate() {
+            write_case_inputs(&pipeline_dir.join("cases").join(index.to_string()), case)?;
+        }
+        Ok::<_, std::io::Error>(())
+    })
+    .await
+    .map_err(|error| CheckError::Launch(error.to_string()))?
+    .map_err(|error| CheckError::Launch(error.to_string()))
+}
+
+pub(crate) fn unique_name() -> String {
+    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let count = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.subsec_nanos())
+        .unwrap_or_default();
+    format!("pro-contract-check-{}-{count}-{nanos}", std::process::id())
+}
+
+async fn command_output(
+    program: &str,
+    args: &[&str],
+    timeout: std::time::Duration,
+) -> Result<String, CheckError> {
+    if timeout.is_zero() {
+        return Err(CheckError::TimedOut);
+    }
+    let mut command = tokio::process::Command::new(program);
+    command
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true);
+    #[cfg(unix)]
+    command.process_group(0);
+    let child = command
+        .spawn()
+        .map_err(|error| CheckError::Launch(format!("{program}: {error}")))?;
+    let mut group = crate::execution::ProcessGroup::new(child.id())
+        .map_err(|e| CheckError::Launch(e.to_string()))?;
+    let output = tokio::time::timeout(
+        timeout.min(std::time::Duration::from_secs(30)),
+        child.wait_with_output(),
+    )
+    .await
+    .map_err(|_| {
+        CheckError::Launch(format!(
+            "metadata operation {program} exceeded its deadline"
+        ))
+    })?
+    .map_err(|error| CheckError::Launch(format!("{program}: {error}")))?;
+    group.stop();
+    if !output.status.success() {
+        return Err(CheckError::Launch(format!(
+            "{program} {}: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+pub(crate) async fn pin_environment(
+    env: &CheckEnvironment,
+    timeout: std::time::Duration,
+) -> Result<CheckEnvironment, CheckError> {
+    let image = command_output(
+        &env.docker,
+        &["image", "inspect", "--format", "{{.Id}}", &env.image],
+        timeout,
+    )
+    .await?;
+    if image.len() != 71
+        || !image.starts_with("sha256:")
+        || !image[7..].bytes().all(|b| b.is_ascii_hexdigit())
+    {
+        return Err(CheckError::Launch(
+            "container image did not resolve to an immutable identity".into(),
+        ));
+    }
+    Ok(CheckEnvironment {
+        image,
+        ..env.clone()
+    })
+}
+
+/// Runs `pipeline.sh` from `pipeline_dir` in a fresh, network-less container with each
+/// `(host, container)` directory mounted read-only, and returns its stdout.
+async fn run_container(
+    env: &CheckEnvironment,
+    pipeline_dir: &Path,
+    mounts: &[(&Path, &str)],
+    timeout: std::time::Duration,
+) -> Result<crate::execution::Output, CheckError> {
+    let started = std::time::Instant::now();
+    let mut readable: Vec<String> = mounts
+        .iter()
+        .map(|(host, _)| host.display().to_string())
+        .collect();
+    readable.push(pipeline_dir.display().to_string());
+    let mut chmod = vec!["-R", "a+rX"];
+    chmod.extend(readable.iter().map(String::as_str));
+    // The container user only needs to read the mounts; it works in its own copies.
+    command_output("chmod", &chmod, timeout).await?;
+    let name = unique_name();
+    let mut args: Vec<String> = [
+        "run",
+        "--rm",
+        "--name",
+        &name,
+        "--network",
+        "none",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--user",
+        &env.user,
+    ]
+    .iter()
+    .map(ToString::to_string)
+    .collect();
+    let all_mounts = mounts
+        .iter()
+        .map(|(host, container)| (host.display().to_string(), container.to_string()))
+        .chain(std::iter::once((
+            pipeline_dir.display().to_string(),
+            PIPELINE_MOUNT.to_string(),
+        )));
+    for (host, container) in all_mounts {
+        args.push("-v".to_string());
+        args.push(format!("{host}:{container}:ro"));
+    }
+    args.extend(env.input_mount_args().map_err(CheckError::Launch)?);
+    args.extend(
+        [
+            "--entrypoint",
+            "bash",
+            &env.image,
+            &format!("{PIPELINE_MOUNT}/pipeline.sh"),
+        ]
+        .iter()
+        .map(ToString::to_string),
+    );
+    let binding = digest_of("check_action", &(&args, &env.image));
+    let mut command = tokio::process::Command::new(&env.docker);
+    command.args(&args);
+    let available = timeout.saturating_sub(started.elapsed());
+    if available.is_zero() {
+        return Err(CheckError::TimedOut);
+    }
+    crate::execution::run(
+        command,
+        &pipeline_dir.join("action"),
+        binding,
+        available,
+        Some(crate::execution::Cleanup::new(
+            env.docker.clone(),
+            vec!["rm".into(), "-f".into(), name],
+        )),
+    )
+    .await
+    .map_err(|error| CheckError::Launch(error.to_string()))
+}
+
+/// Runs `cases` on the reference only, twice each, over the base workspace at `base_dir`; for
+/// probing what the reference does before any candidate exists.
+pub async fn observe(
+    env: &CheckEnvironment,
+    base_dir: &Path,
+    reference: &str,
+    cases: &[DifferentialCase],
+) -> Result<Vec<Observation>, CheckError> {
+    let batch = observe_batch(env, base_dir, reference, cases).await?;
+    if !batch.complete {
+        return Err(CheckError::Launch("reference observation action was incomplete; retained journal contains partial observations".into()));
+    }
+    Ok(batch.observations)
+}
+
+pub async fn observe_batch(
+    env: &CheckEnvironment,
+    base_dir: &Path,
+    reference: &str,
+    cases: &[DifferentialCase],
+) -> Result<ObservationBatch, CheckError> {
+    if cases.is_empty() {
+        return Ok(ObservationBatch {
+            observations: Vec::new(),
+            complete: true,
+            execution: None,
+        });
+    }
+    let started = std::time::Instant::now();
+    let timeout = std::time::Duration::from_secs(env.timeout_secs);
+    let pinned = pin_environment(env, timeout).await?;
+    let env = &pinned;
+    let pipeline_dir = scratch_dir(base_dir, "observe");
+    write_pipeline(
+        &pipeline_dir,
+        &observe_script(reference, cases),
+        cases.to_vec(),
+    )
+    .await?;
+    let output = run_container(
+        env,
+        &pipeline_dir,
+        &[(base_dir, BASE_MOUNT)],
+        timeout.saturating_sub(started.elapsed()),
+    )
+    .await?;
+    // Journals survive failure; they are not deleted with a partial batch.
+    let observations = parse_observations(completed_lines(&output.stdout));
+    if !observations
+        .iter()
+        .map(|o| &o.id)
+        .eq(cases.iter().take(observations.len()).map(|c| &c.id))
+    {
+        return Err(CheckError::Launch(
+            "reference observation journal is not a valid prefix of requested cases".into(),
+        ));
+    }
+    let complete = output.receipt.completed() && observations.len() == cases.len();
+    Ok(ObservationBatch {
+        observations,
+        complete,
+        execution: Some(output.receipt),
+    })
+}
+
+/// An unterminated final record cannot assert a completed check.
+fn completed_lines(text: &str) -> &str {
+    text.rfind('\n').map_or("", |end| &text[..=end])
+}
+
+/// A sibling directory of `dir` for one container run's script and case inputs.
+fn scratch_dir(dir: &Path, purpose: &str) -> PathBuf {
+    let name = dir
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    dir.with_file_name(format!("{name}.{purpose}-{}", unique_name()))
+}
+
+/// Build and candidate tests each get a sixth of the container budget, so a hanging step is the
+/// candidate's failure while the container timeout stays an infrastructure backstop.
+fn step_timeout_secs(env: &CheckEnvironment) -> u64 {
+    (env.timeout_secs / 6).max(1)
+}
+
+/// Runs the pipeline over the materialized subject at `subject_dir`, with the base workspace at
+/// `base_dir` under every case.
+pub async fn run(
+    env: &CheckEnvironment,
+    subject_dir: &Path,
+    base_dir: &Path,
+    policy: &EvidencePolicy,
+) -> Result<CheckReceipts, CheckError> {
+    // A proof/document review has no executable checks. Its evidence is the frozen artifact
+    // catalog; starting a build container would add a false infrastructure dependency.
+    if expected_steps(policy).is_empty() {
+        let environment =
+            vec!["artifact review only; no program or container executed".to_string()];
+        return Ok(CheckReceipts {
+            steps: Vec::new(),
+            environment_digest: digest_of("artifact_review_environment", &environment),
+            evaluator_digest: digest_of("artifact_review_checks", &policy),
+            environment,
+            execution: None,
+            complete: true,
+        });
+    }
+    let started = std::time::Instant::now();
+    let timeout = std::time::Duration::from_secs(env.timeout_secs);
+    let pinned = pin_environment(env, timeout).await?;
+    let env = &pinned;
+    let script = pipeline_script(policy, &env.candidate_mount, step_timeout_secs(env));
+    let evaluator_digest = digest_of(
+        "check_pipeline",
+        &(&script, INVOCATION_RUNNER, PROGRAM_ENV, &env.image),
+    );
+    let image_id = &env.image;
+    let pipeline_dir = scratch_dir(subject_dir, "pipeline");
+    let case_list = if runs_cases(policy) {
+        cases(policy)
+            .into_iter()
+            .map(|(_, case)| case.clone())
+            .collect()
+    } else {
+        Vec::new()
+    };
+    write_pipeline(&pipeline_dir, &script, case_list).await?;
+    let stdout = run_container(
+        env,
+        &pipeline_dir,
+        &[
+            (subject_dir, env.candidate_mount.as_str()),
+            (base_dir, BASE_MOUNT),
+        ],
+        timeout.saturating_sub(started.elapsed()),
+    )
+    .await?;
+    let text = completed_lines(&stdout.stdout);
+    let (steps, environment, complete) = parse_output(text, policy);
+    let complete = complete && stdout.receipt.completed();
+    let environment_digest = digest_of("check_environment", &(&image_id, &environment));
+    Ok(CheckReceipts {
+        steps,
+        environment,
+        complete,
+        environment_digest,
+        evaluator_digest,
+        execution: Some(stdout.receipt),
+    })
+}
+
+#[cfg(test)]
+#[path = "checks_tests.rs"]
+mod tests;

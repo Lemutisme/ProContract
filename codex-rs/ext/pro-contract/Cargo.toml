@@ -1,0 +1,51 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "codex-pro-contract-extension"
+version.workspace = true
+
+[lib]
+name = "codex_pro_contract_extension"
+path = "src/lib.rs"
+doctest = false
+
+[[bin]]
+name = "pro-contract-check"
+path = "src/bin/pro_contract_check.rs"
+
+[lints]
+workspace = true
+
+[features]
+# Test-only binary metadata isolation: preserve historically pinned test executables.
+native-prefix-control = []
+
+[dependencies]
+base64 = { workspace = true }
+codex-core = { workspace = true }
+codex-extension-api = { workspace = true }
+codex-features = { workspace = true }
+codex-history = { workspace = true }
+codex-pro-contract = { workspace = true }
+codex-pro-contract-store = { workspace = true }
+codex-protocol = { workspace = true }
+codex-state = { workspace = true }
+libc = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["fs", "macros", "process", "rt", "sync", "time"] }
+tracing = { workspace = true }
+
+[dev-dependencies]
+codex-thread-context-ids-test-support = { workspace = true }
+core_test_support = { workspace = true }
+codex-context-fragments = { workspace = true }
+codex-protocol-test-support = { workspace = true }
+codex-utils-absolute-path = { workspace = true }
+pretty_assertions = { workspace = true }
+regex = { workspace = true }
+sqlx = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

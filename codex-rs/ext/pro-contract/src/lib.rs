@@ -1,0 +1,93 @@
+//! ProContract settlement extension.
+//!
+//! Hosts the institution (a SQLite ledger over the pure `codex-pro-contract` kernel and a
+//! SHA-256 artifact store) and the automatic Principal's automation lane: intake, drafting,
+//! Issue, a candidate frozen at the turn-end boundary, container checks plus an isolated
+//! review, Support or Defeat, and a bounded repair. Settlement stays with the human; under
+//! the evaluation profile nothing is settled at all.
+
+mod checks;
+mod controller;
+mod execution;
+mod inspection;
+mod inspection_grant;
+mod resources;
+mod settings;
+mod workers;
+
+pub use checks::CheckError;
+pub use checks::CheckReceipts;
+pub use checks::Observation;
+pub use checks::ObservationBatch;
+pub use checks::StepOutcome;
+pub use checks::StepReceipt;
+pub use checks::observe;
+pub use checks::run as run_checks;
+pub use codex_pro_contract_store::BlobStore;
+pub use codex_pro_contract_store::CaptureError;
+pub use codex_pro_contract_store::CapturePolicy;
+pub use codex_pro_contract_store::ContextKind;
+pub use codex_pro_contract_store::DifferentialCase;
+pub use codex_pro_contract_store::Entry;
+pub use codex_pro_contract_store::EntryKind;
+pub use codex_pro_contract_store::EventRecord;
+pub use codex_pro_contract_store::EvidenceClass;
+pub use codex_pro_contract_store::EvidencePolicy;
+pub use codex_pro_contract_store::FixtureFile;
+pub use codex_pro_contract_store::Ledger;
+pub use codex_pro_contract_store::LedgerError;
+pub use codex_pro_contract_store::Manifest;
+pub use codex_pro_contract_store::ObligationScope;
+pub use codex_pro_contract_store::OutOfScope;
+pub use codex_pro_contract_store::ProcessConstraint;
+pub use codex_pro_contract_store::RequestContext;
+pub use codex_pro_contract_store::Requirement;
+pub use codex_pro_contract_store::Subject;
+pub use codex_pro_contract_store::Terminal;
+pub use codex_pro_contract_store::TerminalExchange;
+pub use codex_pro_contract_store::Terms;
+pub use codex_pro_contract_store::capture;
+pub use codex_pro_contract_store::digest_of;
+pub use codex_pro_contract_store::materialize;
+pub use controller::archive_export::{
+    ArchiveCaptureLimits, SelectorArchiveInvocation, SelectorArchiveReader,
+};
+pub use controller::runtime::StatusRecord;
+pub use execution::ExecutionReceipt;
+pub use execution::ExecutionState;
+pub use settings::CheckEnvironment;
+pub use settings::EvaluationProfile;
+pub use settings::EvidenceSettings;
+pub use settings::ProgressSettings;
+pub use settings::ReviewExecution;
+pub use settings::ReviewResources;
+pub use settings::SelectorCaptureSettings;
+pub use settings::Settings;
+pub use settings::SettingsError;
+pub use settings::SuccessionSettings;
+pub use settings::TaskInput;
+pub use settings::WorkerSettings;
+pub use workers::WorkerError;
+
+/// Installs the ProContract automation lane. `enabled` decides per thread configuration whether
+/// the lane is active at all; eligibility then decides whether contracts are possible.
+pub fn install(
+    registry: &mut codex_extension_api::ExtensionRegistryBuilder<codex_core::config::Config>,
+    thread_manager: std::sync::Weak<codex_core::ThreadManager>,
+    enabled: impl Fn(&codex_core::config::Config) -> bool + Send + Sync + 'static,
+) {
+    let extension = std::sync::Arc::new(controller::ProContractExtension::new(
+        thread_manager,
+        Box::new(enabled),
+    ));
+    registry.thread_lifecycle_contributor(extension.clone());
+    registry.turn_lifecycle_contributor(extension.clone());
+    registry.turn_input_contributor(extension.clone());
+    registry.tool_contributor(std::sync::Arc::new(
+        controller::evidence_tool::EvidenceTools,
+    ));
+    registry.tool_lifecycle_contributor(std::sync::Arc::new(
+        controller::evidence_tool::EvidenceTools,
+    ));
+    registry.prompt_contributor(extension);
+}

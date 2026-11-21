@@ -4,3 +4,17 @@ Copyright 2025 OpenAI
 This project includes code derived from [Ratatui](https://github.com/ratatui/ratatui), licensed under the MIT license.
 Copyright (c) 2016-2022 Florian Dehau
 Copyright (c) 2023-2025 The Ratatui Developers
+
+ProContract
+Copyright 2026 The ProContract Authors
+
+This repository is a modified version of OpenAI Codex (https://github.com/openai/codex),
+which is licensed under the Apache License, Version 2.0 (see LICENSE). The upstream base is
+commit 583ec348cf9007361d09513c716549c41d4d8128.
+
+ProContract adds the progress-contract kernel and store (codex-rs/pro-contract,
+codex-rs/pro-contract-store), the native extension (codex-rs/ext/pro-contract), and the
+launcher, harness, research runtime and strategies under scripts/, harness/ and strategies/.
+It also changes 79 files of the upstream project to integrate them; these files are listed
+in docs/PROCONTRACT_UPSTREAM_CHANGES.md. All additions and changes are distributed under the
+same license.

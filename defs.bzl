@@ -209,6 +209,7 @@ def codex_rust_crate(
         lib_data_extra = [],
         rustc_flags_extra = [],
         binary_rustc_flags_extra = {},
+        binary_target_names = {},
         binaries_with_build_commit = [],
         rustc_env = {},
         rustc_env_files = [],
@@ -259,6 +260,9 @@ def codex_rust_crate(
         lib_data_extra: Extra runtime data for the library target.
         binary_rustc_flags_extra: Mapping from binary names to extra rustc
             flags for those binary targets.
+        binary_target_names: Optional Cargo binary name to Bazel target name mapping,
+            for a binary whose name would otherwise collide with its library target.
+            CARGO_BIN_EXE_* continues to use the Cargo binary name.
         binaries_with_build_commit: Binary names that embed STABLE_GIT_COMMIT from the
             generated build-commit environment file. Other workspace status is
             excluded from their compilation inputs.
@@ -430,12 +434,12 @@ def codex_rust_crate(
     cargo_env = {}
     cargo_env_runfiles = {}
     for binary, main in binaries.items():
-        #binary = binary.replace("-", "_")
-        sanitized_binaries.append(binary)
-        cargo_env_runfiles[":" + binary] = "CARGO_BIN_EXE_" + binary
-        cargo_env["CARGO_BIN_EXE_" + binary] = "$(rlocationpath :%s)" % binary
+        binary_target = binary_target_names.get(binary, binary)
+        sanitized_binaries.append(binary_target)
+        cargo_env_runfiles[":" + binary_target] = "CARGO_BIN_EXE_" + binary
+        cargo_env["CARGO_BIN_EXE_" + binary] = "$(rlocationpath :%s)" % binary_target
         rust_binary(
-            name = binary,
+            name = binary_target,
             crate_name = binary.replace("-", "_"),
             crate_root = main,
             deps = all_crate_deps() + maybe_deps + deps_extra,
@@ -474,7 +478,7 @@ def codex_rust_crate(
         # sharding while Clippy can still discover the underlying test crate.
         rust_test(
             name = binary_unit_test_binary,
-            crate = ":" + binary,
+            crate = ":" + binary_target,
             crate_features = crate_features,
             compile_data = unit_test_srcs,
             deps = all_crate_deps(normal_dev = True),

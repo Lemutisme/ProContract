@@ -527,7 +527,7 @@ impl UnifiedExecProcess {
                 };
                 let event_seq = event.as_ref().and_then(|event| match event {
                     ExecProcessEvent::Output(chunk) => Some(chunk.seq),
-                    ExecProcessEvent::Exited { seq, .. } | ExecProcessEvent::Closed { seq } => {
+                    ExecProcessEvent::Exited { seq, .. } | ExecProcessEvent::Closed { seq, .. } => {
                         Some(*seq)
                     }
                     ExecProcessEvent::Failed(_) => None,
@@ -640,9 +640,12 @@ impl UnifiedExecProcess {
                             cancellation_token.cancel();
                         }
                     }
-                    ExecProcessEvent::Closed { seq } => {
+                    ExecProcessEvent::Closed { seq, failure } => {
                         if seq <= last_seq {
                             continue;
+                        }
+                        if let Some(message) = failure {
+                            state_tx.send_modify(|state| state.failed(message));
                         }
                         output_closed.store(true, Ordering::Release);
                         output_closed_notify.notify_waiters();

@@ -224,6 +224,7 @@ async fn country_settings_follow_step_and_turn_lifetimes(live_update: bool) -> R
         .submit(Op::DynamicToolResponse {
             id: CALL_ID.into(),
             response: DynamicToolResponse {
+                structured_content: None,
                 content_items: vec![DynamicToolCallOutputContentItem::InputText {
                     text: "ready".into(),
                 }],
@@ -298,6 +299,7 @@ async fn budget_is_checked_again_after_tool_call(exhausted: bool) -> Result<()> 
         .submit(Op::DynamicToolResponse {
             id: CALL_ID.into(),
             response: DynamicToolResponse {
+                structured_content: None,
                 content_items: vec![DynamicToolCallOutputContentItem::InputText {
                     text: TOOL_OUTPUT.into(),
                 }],

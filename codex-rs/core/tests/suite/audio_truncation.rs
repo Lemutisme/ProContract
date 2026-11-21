@@ -142,6 +142,7 @@ async fn dynamic_tool_audio_exceeding_the_output_budget_is_omitted(
         .submit(Op::DynamicToolResponse {
             id: request.call_id,
             response: DynamicToolResponse {
+                structured_content: None,
                 content_items: vec![
                     DynamicToolCallOutputContentItem::InputText {
                         text: prefix.clone(),

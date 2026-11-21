@@ -1,0 +1,56 @@
+//! The ProContract institution's storage primitives: domain-separated hashing, contract terms,
+//! workspace capture, the content-addressed blob store, and the SQLite ledger. Free of
+//! `codex-core`, so that operator tools and a protected institution service can link it directly.
+
+mod capture;
+pub mod cli;
+mod hashing;
+mod store;
+mod terms;
+
+pub use capture::CaptureError;
+pub use capture::Entry;
+pub use capture::EntryKind;
+pub use capture::Manifest;
+pub use capture::Subject;
+pub use capture::capture;
+pub use capture::load_subject;
+pub use capture::materialize;
+pub use capture::persist_manifest;
+pub use hashing::digest_of;
+pub use store::adoption::AcceptanceView;
+pub use store::adoption::AdoptionRequest;
+pub use store::adoption::IncumbentView;
+pub use store::adoption::Migrated;
+pub use store::adoption::MigratedAcceptance;
+pub use store::adoption::MigrationRequest;
+pub use store::adoption::MigrationState;
+pub use store::adoption::SelectionRequest;
+pub use store::blobs::BlobStore;
+pub use store::experiments::ExperimentEvent;
+pub use store::experiments::ExperimentKind;
+pub use store::experiments::ExperimentRecord;
+pub use store::experiments::Identities;
+pub use store::ledger::EventRecord;
+pub use store::ledger::LEDGER_FILE;
+pub use store::ledger::Ledger;
+pub use store::ledger::LedgerError;
+pub use store::ledger::SubjectBinding;
+pub use terms::CapturePolicy;
+pub use terms::ContextKind;
+pub use terms::DifferentialCase;
+pub use terms::EvidenceClass;
+pub use terms::EvidencePolicy;
+pub use terms::FixtureFile;
+pub use terms::Obligation;
+pub use terms::ObligationScope;
+pub use terms::OutOfScope;
+pub use terms::ProcessConstraint;
+pub use terms::RequestContext;
+pub use terms::Requirement;
+pub use terms::Terminal;
+pub use terms::TerminalExchange;
+pub use terms::Terms;
+pub use terms::default_min_sealed_qualified;
+pub use terms::default_min_success_permille;
+pub use terms::default_sealed_threshold_permille;

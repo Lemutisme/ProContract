@@ -1,0 +1,255 @@
+import hashlib
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+import procontract_canonical_registry as registry
+
+
+class RegistryTest(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.path = self.root / "registry.json"
+        self.task = "example__first.1234567"
+        self.fresh = "different__project.abcdef0"
+        self.document = {
+            "schema": 1,
+            "tasks": {
+                self.task: {"total": 3, "image": "sha256:" + "a" * 64},
+                self.fresh: {"total": 2, "image": "sha256:" + "b" * 64},
+            },
+            "programbench": str(self.root / "pb"),
+            "programbench_head": "a" * 40,
+            "hf_revision": "b" * 40,
+            **{
+                name: str(self.root / name)
+                for name in ("wheelhouse", "blob_root", "blob_manifest", "pins_file")
+            },
+        }
+
+    def write(self):
+        raw = json.dumps(self.document).encode()
+        self.path.write_bytes(raw)
+        return hashlib.sha256(raw).hexdigest()
+
+    def terms(self):
+        return {
+            **{
+                key: self.document[key]
+                for key in ("programbench", "programbench_head", "hf_revision")
+            },
+            "stream": {"order": [self.task]},
+            "pools": {"dev": [], "confirm": [self.fresh]},
+        }
+
+    def test_fresh_registry_is_loaded_without_the_old_three_task_allowlist(self):
+        loaded = registry.load(self.path, self.write())
+        loaded.validate_campaign(self.terms())
+        self.assertEqual(
+            dict(loaded.tasks[self.fresh]),
+            {
+                "total": 2,
+                "image": "sha256:" + "b" * 64,
+                "image_tag": "programbench/different_1776_project.abcdef0:task_cleanroom_v6",
+            },
+        )
+        with self.assertRaises(TypeError):
+            loaded.tasks[self.fresh]["total"] = 99
+
+    def test_grader_requirements_are_explicit_exact_versions_and_bound_on_resume(self):
+        for invalid in [["pkg"],["pkg>=1"],["--index-url=http://example"],["pkg==1;exit"],["pkg==1","PKG==2"]]:
+            self.document["grader_requirements"] = invalid
+            with self.assertRaises(ValueError):registry.load(self.path,self.write())
+        self.document["grader_requirements"] = ["example-package==1.2.3"]
+        loaded=registry.load(self.path,self.write())
+        self.assertEqual(loaded.grader_requirements,("example-package==1.2.3",))
+        self.document["grader_requirements"] = ["example-package==2.0"]
+        self.write()
+        with self.assertRaisesRegex(ValueError,"identity"):loaded.verify_source()
+
+    def test_frozen_registry_drift_is_rejected_on_resume(self):
+        loaded = registry.load(self.path, self.write())
+        self.document["tasks"][self.fresh]["total"] = 5
+        self.write()
+        with self.assertRaisesRegex(ValueError, "identity"):
+            loaded.verify_source()
+
+    def test_evaluator_cpu_allocation_is_pinned_and_old_registries_keep_their_limit(self):
+        self.assertEqual(registry.load(self.path,self.write()).docker_cpus,4)
+        self.document['docker_cpus']=10
+        loaded=registry.load(self.path,self.write())
+        self.assertEqual(loaded.docker_cpus,10)
+        self.document['docker_cpus']=20
+        self.write()
+        with self.assertRaisesRegex(ValueError,'identity'):loaded.verify_source()
+        for invalid in (0,-1,True,1.5,'10'):
+            self.document['docker_cpus']=invalid
+            with self.assertRaisesRegex(ValueError,'CPU'):registry.load(self.path,self.write())
+
+    def test_test_workspace_profile_is_explicit_and_bound(self):
+        self.assertEqual(registry.load(self.path,self.write()).test_workspace,'inherit')
+        self.document['test_workspace']='isolated'
+        loaded=registry.load(self.path,self.write())
+        self.assertEqual(loaded.test_workspace,'isolated')
+        self.document['test_workspace']='inherit'
+        self.write()
+        with self.assertRaisesRegex(ValueError,'identity'):loaded.verify_source()
+        self.document['test_workspace']='drop-some-source-files'
+        with self.assertRaisesRegex(ValueError,'workspace'):registry.load(self.path,self.write())
+
+    def test_grading_parallelism_and_suite_grant_are_pinned(self):
+        defaults = registry.load(self.path, self.write())
+        self.assertEqual((defaults.branch_workers, defaults.test_suite_seconds), (1, 3600))
+        for name, selected in (("branch_workers", 2), ("test_suite_seconds", 10800)):
+            self.document[name] = selected
+            loaded = registry.load(self.path, self.write())
+            self.assertEqual(getattr(loaded, name), selected)
+            self.document[name] = selected + 1
+            self.write()
+            with self.assertRaisesRegex(ValueError, "identity"):
+                loaded.verify_source()
+            for invalid in (0, -1, True, 1.5, "2"):
+                self.document[name] = invalid
+                with self.assertRaisesRegex(ValueError, name):
+                    registry.load(self.path, self.write())
+            self.document[name] = selected
+
+    def test_grader_assets_are_bound_and_rechecked_independently_of_registry_bytes(self):
+        archive = self.root / "grader-assets.tar.gz"
+        archive.write_bytes(b"original toolchain")
+        self.document["grader_assets"] = dict(archive=str(archive),
+            sha256=hashlib.sha256(archive.read_bytes()).hexdigest(), environment={}, path_prepend=[])
+        loaded = registry.load(self.path, self.write())
+        loaded.verify_source()
+        archive.write_bytes(b"replaced toolchain")
+        with self.assertRaisesRegex(ValueError, "archive changed"):
+            loaded.verify_source()
+
+    def test_unknown_tasks_and_known_repo_exposure_do_not_enter_confirmation(self):
+        loaded = registry.load(self.path, self.write())
+        terms = self.terms()
+        terms["pools"]["confirm"] = ["missing__repo.1234567"]
+        with self.assertRaisesRegex(ValueError, "outside"):
+            loaded.validate_campaign(terms)
+        self.document["exposed_tasks"] = ["different__project.1111111"]
+        loaded = registry.load(self.path, self.write())
+        with self.assertRaisesRegex(ValueError, "repository"):
+            loaded.validate_campaign(self.terms())
+
+    def test_commits_of_the_same_repository_are_not_split_across_confirmation(self):
+        related = "example__first.7654321"
+        self.document["tasks"][related] = self.document["tasks"][self.task]
+        loaded = registry.load(self.path, self.write())
+        terms = self.terms()
+        terms["pools"]["confirm"] = [related]
+        with self.assertRaisesRegex(ValueError, "repository"):
+            loaded.validate_campaign(terms)
+
+    def test_default_strict_scope_refuses_historical_operator_repository_overlap(self):
+        self.document["operator_exposed_tasks"] = ["different__project.1111111"]
+        loaded = registry.load(self.path, self.write())
+        with self.assertRaisesRegex(ValueError, "repository"):
+            loaded.validate_campaign(self.terms())
+        terms = self.terms()
+        terms["confirmation_exposure_scope"] = "prospective_lineage"
+        with self.assertRaisesRegex(ValueError, "confirmation_exposure_scope"):
+            loaded.validate_campaign(terms)
+
+    def test_prospective_operator_history_requires_matching_campaign_scope(self):
+        historical = "different__project.1111111"
+        self.document.update(
+            exposure_scope="prospective_lineage", operator_exposed_tasks=[historical]
+        )
+        loaded = registry.load(self.path, self.write())
+        for scope in (None, "strict", "unknown"):
+            with self.subTest(scope=scope):
+                terms = self.terms()
+                if scope is not None:
+                    terms["confirmation_exposure_scope"] = scope
+                with self.assertRaisesRegex(ValueError, "confirmation_exposure_scope"):
+                    loaded.validate_campaign(terms)
+        terms["confirmation_exposure_scope"] = "prospective_lineage"
+        loaded.validate_campaign(terms)
+        self.assertEqual(loaded.operator_exposed_tasks, (historical,))
+        self.document["operator_exposed_tasks"].append(self.task)
+        self.write()
+        self.assertEqual(loaded.operator_exposed_tasks, (historical,))
+        with self.assertRaisesRegex(ValueError, "identity"):
+            loaded.verify_source()
+
+    def test_prospective_scope_never_allows_model_or_development_exposure(self):
+        self.document.update(
+            exposure_scope="prospective_lineage",
+            operator_exposed_tasks=["different__project.1111111"],
+        )
+        terms = self.terms()
+        terms["confirmation_exposure_scope"] = "prospective_lineage"
+        self.document["exposed_tasks"] = ["different__project.2222222"]
+        loaded = registry.load(self.path, self.write())
+        with self.assertRaisesRegex(ValueError, "repository"):
+            loaded.validate_campaign(terms)
+        del self.document["exposed_tasks"]
+        related = "different__project.3333333"
+        self.document["tasks"][related] = self.document["tasks"][self.fresh]
+        loaded = registry.load(self.path, self.write())
+        for group in ("stream", "dev"):
+            with self.subTest(group=group):
+                terms = self.terms()
+                terms["confirmation_exposure_scope"] = "prospective_lineage"
+                if group == "stream":
+                    terms["stream"]["order"].append(related)
+                else:
+                    terms["pools"]["dev"].append(related)
+                with self.assertRaisesRegex(ValueError, "repository"):
+                    loaded.validate_campaign(terms)
+
+    def test_exposure_declarations_require_bounded_unique_task_ids(self):
+        for value in ("task", ["invalid"], [self.task, self.task], [False]):
+            with self.subTest(value=value):
+                self.document["operator_exposed_tasks"] = value
+                with self.assertRaisesRegex(ValueError, "operator-exposure"):
+                    registry.load(self.path, self.write())
+        self.document.update(
+            exposure_scope="prospective_lineage", operator_exposed_tasks=[]
+        )
+        with self.assertRaisesRegex(ValueError, "disclosed operator exposure"):
+            registry.load(self.path, self.write())
+        self.document["exposure_scope"] = "unseen"
+        with self.assertRaisesRegex(ValueError, "exposure scope"):
+            registry.load(self.path, self.write())
+
+    def test_unpinned_images_counts_paths_and_unknown_fields_are_rejected(self):
+        for key, value in (
+            ("image", "latest"),
+            ("total", True),
+            ("total", 0),
+            ("extra", "ignored"),
+        ):
+            with self.subTest(key=key):
+                old = dict(self.document["tasks"][self.task])
+                self.document["tasks"][self.task][key] = value
+                with self.assertRaises(ValueError):
+                    registry.load(self.path, self.write())
+                self.document["tasks"][self.task] = old
+        self.document["pins_file"] = "relative/pins.json"
+        with self.assertRaises(ValueError):
+            registry.load(self.path, self.write())
+
+    def test_duplicate_keys_and_unpinned_source_are_rejected(self):
+        raw = (
+            json.dumps(self.document)
+            .replace('"schema": 1', '"schema": 1, "schema": 1')
+            .encode()
+        )
+        self.path.write_bytes(raw)
+        with self.assertRaisesRegex(ValueError, "duplicate"):
+            registry.load(self.path, hashlib.sha256(raw).hexdigest())
+        with self.assertRaises(ValueError):
+            registry.load(self.path, "not-a-digest")
+
+
+if __name__ == "__main__":
+    unittest.main()

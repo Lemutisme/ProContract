@@ -1,0 +1,6 @@
+# Opt-in executor capability profile. No task deadline, request limit, automatic
+# reset threshold or paid summarization workflow is introduced here.
+[features.token_budget]
+enabled = true
+use_history_notes_extension = true
+guidance_message = "Choose a fresh context when useful. Before switching, retain the working result, consequential decisions, runnable checks and outstanding operations in sources you can retrieve. Use the tools actually offered to recover that state. A new context preserves the environment and the original responsibility; it does not prove pending work finished."

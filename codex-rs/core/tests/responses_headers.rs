@@ -73,6 +73,7 @@ async fn responses_stream_includes_subagent_header_on_review() {
     .await;
 
     let provider = ModelProviderInfo {
+        wait_on_rate_limits: false,
         name: "mock".into(),
         base_url: Some(format!("{}/v1", server.uri())),
         model_catalog_url: None,
@@ -223,6 +224,7 @@ async fn responses_stream_includes_subagent_header_on_other() {
     .await;
 
     let provider = ModelProviderInfo {
+        wait_on_rate_limits: false,
         name: "mock".into(),
         base_url: Some(format!("{}/v1", server.uri())),
         model_catalog_url: None,
@@ -354,6 +356,7 @@ async fn responses_respects_model_info_overrides_from_config() {
     let request_recorder = responses::mount_sse_once(&server, response_body).await;
 
     let provider = ModelProviderInfo {
+        wait_on_rate_limits: false,
         name: "mock".into(),
         base_url: Some(format!("{}/v1", server.uri())),
         model_catalog_url: None,

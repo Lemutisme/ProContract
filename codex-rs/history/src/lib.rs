@@ -128,6 +128,11 @@ pub struct CodexHarnessMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retained_source: Option<RetainedSource>,
 
+    /// Host proof that the persisted user text is the complete original, even
+    /// when its separate reviewer excerpt is incomplete. Never model-authored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub original_user_text_sha256: Option<[u8; 32]>,
+
     /// The harness rendered client-supplied untrusted additional context as a standalone tool output.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub additional_context_tool_output: bool,
@@ -255,6 +260,7 @@ impl std::fmt::Debug for ImageReplaySource {
 impl CodexHarnessMetadata {
     /// Shortened messages no longer prove complete instruction or review delivery.
     pub fn mark_retained_sources_incomplete(&mut self) {
+        self.original_user_text_sha256 = None;
         self.guardian_review_ids.clear();
         self.guardian_source_order_guidance = false;
         self.guardian_retained_omissions = None;

@@ -642,6 +642,7 @@ async fn detached_host_child_inherits_root_service_tier_at_prewarm_and_each_step
         .submit(Op::DynamicToolResponse {
             id: "hold".into(),
             response: DynamicToolResponse {
+                structured_content: None,
                 content_items: vec![],
                 success: true,
             },

@@ -93,6 +93,7 @@ impl RetainedContext {
                 .unwrap_or_else(|| context_ids.next_item("retained"))
         });
         let entry = Ordered {
+            original_text: None,
             revision,
             inherited,
             order,

@@ -104,6 +104,15 @@ pub(crate) fn thread_extensions(
         git_attribution_base_url,
         http_client_factory,
     );
+    codex_pro_contract_extension::install(
+        &mut builder,
+        thread_manager.clone(),
+        |config: &Config| {
+            config
+                .features
+                .enabled(codex_features::Feature::ProContract)
+        },
+    );
     if config.features.enabled(codex_features::Feature::GuardianV3) {
         let board_manager = thread_manager.clone();
         codex_guardian_v3::install(&mut builder, thread_manager.clone(), config, move |root| {

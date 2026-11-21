@@ -279,6 +279,8 @@ pub enum Feature {
     InterruptOnCancel,
     /// Enable shared discussion tools for an agent tree.
     AgentMessageBoard,
+    /// Place substantive work under a settlement contract verified by an isolated principal.
+    ProContract,
     /// Expose a tree-scoped in-memory message board through HTTP MCP.
     AgentMessageBoardMcp,
     /// Removed compatibility flag retained as a no-op.
@@ -1759,6 +1761,12 @@ pub const FEATURES: &[FeatureSpec] = &[
     FeatureSpec {
         id: Feature::AgentMessageBoard,
         key: "agent_message_board",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ProContract,
+        key: "pro_contract",
         stage: Stage::UnderDevelopment,
         default_enabled: false,
     },

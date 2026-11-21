@@ -2153,6 +2153,7 @@ dependencies = [
  "codex-network-proxy",
  "codex-otel",
  "codex-plugin",
+ "codex-pro-contract-extension",
  "codex-prompts",
  "codex-protocol",
  "codex-queue-extension",
@@ -2451,6 +2452,7 @@ dependencies = [
  "codex-utils-pty",
  "codex-windows-sandbox",
  "dotenvy",
+ "libc",
  "pathdiff",
  "pretty_assertions",
  "tempfile",
@@ -3169,6 +3171,7 @@ dependencies = [
  "serde_json",
  "serial_test",
  "sha1 0.10.6",
+ "sha2 0.10.9",
  "shlex",
  "similar",
  "tempfile",
@@ -4716,6 +4719,66 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-util",
+]
+
+[[package]]
+name = "codex-pro-contract"
+version = "0.0.0"
+dependencies = [
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "codex-pro-contract-extension"
+version = "0.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "codex-context-fragments",
+ "codex-core",
+ "codex-extension-api",
+ "codex-features",
+ "codex-history",
+ "codex-pro-contract",
+ "codex-pro-contract-store",
+ "codex-protocol",
+ "codex-protocol-test-support",
+ "codex-state",
+ "codex-thread-context-ids-test-support",
+ "codex-utils-absolute-path",
+ "core_test_support",
+ "libc",
+ "pretty_assertions",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sqlx",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "codex-pro-contract-store"
+version = "0.0.0"
+dependencies = [
+ "clap",
+ "codex-pro-contract",
+ "codex-state",
+ "codex-utils-absolute-path",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sqlx",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]

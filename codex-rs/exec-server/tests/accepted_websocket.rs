@@ -408,7 +408,7 @@ async fn accepted_websocket_interoperates_and_recovers_with_real_direct_executor
                     last_seq = seq;
                     saw_exit = true;
                 }
-                ExecProcessEvent::Closed { seq } => {
+                ExecProcessEvent::Closed { seq, .. } => {
                     assert!(saw_exit, "closed must be delivered after exit");
                     assert_eq!(seq, last_seq + 1);
                     break;

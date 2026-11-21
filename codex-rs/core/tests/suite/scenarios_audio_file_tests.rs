@@ -188,6 +188,7 @@ async fn tool_audio_store_id_survives_rollout_and_next_request(
         .submit(Op::DynamicToolResponse {
             id: request.call_id,
             response: DynamicToolResponse {
+                structured_content: None,
                 content_items: vec![DynamicToolCallOutputContentItem::InputAudio {
                     audio_url: wav.clone(),
                 }],

@@ -1291,6 +1291,9 @@
             "prevent_idle_sleep": {
               "type": "boolean"
             },
+            "pro_contract": {
+              "type": "boolean"
+            },
             "psp": {
               "type": "boolean"
             },
@@ -3440,6 +3443,10 @@
         "supports_websockets": {
           "default": false,
           "description": "Whether this provider supports the Responses API WebSocket transport.",
+          "type": "boolean"
+        },
+        "wait_on_rate_limits": {
+          "description": "Wait through transient provider rate limits until the caller cancels or its existing action/task timeout expires. Does not extend a grant or retry quota errors.",
           "type": "boolean"
         },
         "websocket_connect_timeout_ms": {
@@ -8657,6 +8664,9 @@
           "type": "boolean"
         },
         "prevent_idle_sleep": {
+          "type": "boolean"
+        },
+        "pro_contract": {
           "type": "boolean"
         },
         "psp": {
