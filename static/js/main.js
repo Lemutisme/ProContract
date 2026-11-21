@@ -1,10 +1,10 @@
-/* ProContract project page: trajectory tiles and the paired viewer. Plain DOM, no libraries.
+/* ProContract project page: the teaser timeline, the run tiles and the paired viewer. Plain DOM, no libraries.
    Data: window.PC_RUNS (static/js/runs.js), three paired runs taken from the runs' own records. */
 (function () {
   'use strict';
   var RUNS = window.PC_RUNS || [];
   var NS = 'http://www.w3.org/2000/svg';
-  var C = { kernel: '#0F766E', kernelBg: '#CFE7E2', defeat: '#B54732', propose: '#3949A3', harness: '#64748B', track: '#E6EAE7', ink: '#18222D', muted: '#5C6670', rule: '#D5DCD8' };
+  var C = { pc: '#0b6e62', pcBar: '#cfe6e1', no: '#bf4b30', sub: '#3949a3', har: '#6e7781', ink: '#1f2328', muted: '#656d76', faint: '#8c959f', dots: '#c9ced4' };
 
   function h(tag, attrs, kids) {
     var n = document.createElement(tag), k;
@@ -18,78 +18,146 @@
     if (text != null) n.textContent = text;
     return n;
   }
+  function $(id) { return document.getElementById(id); }
   function clock(t) {
     var m = Math.round(t);
     return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + ('0' + (m % 60)).slice(-2) + ' min';
   }
+  function pct(p) { return (p === 100 ? '100' : p.toFixed(1)) + '%'; }
   function stateLine(st) {
     return 'standing=outstanding version=' + st.version + ' generation=' + st.generation + ' candidate=' + (st.candidate || 'none') + ' support=none';
   }
+  function label(e, lane) {
+    if (lane === 'cx') return e.kind === 'done' ? 'declares the goal complete' : 'progress note';
+    return { issue: 'the Contract is issued', propose: e.same ? 'the same artifact is submitted again' : 'the worker ends its turn, artifact ' + e.n + ' is frozen', defeat: 'counterexample to artifact ' + e.n, inconclusive: 'the verifier cannot decide', handover: 'work goes to a fresh worker', end: 'six hours are used' }[e.kind];
+  }
 
-  /* ---- one timeline: Codex above, ProContract below, one shared time axis ---- */
-  function timeline(run, W, full) {
-    var H = full ? 138 : 108, L = full ? 10 : 2, R = full ? 14 : 9;
-    var yC = full ? 34 : 27, yP = full ? 86 : 70, yA = full ? 112 : 88;
-    var x = function (t) { return L + t / run.limit * (W - L - R); };
-    var svg = s('svg', { viewBox: '0 0 ' + W + ' ' + H, width: W, height: H, role: 'img', 'aria-label': 'Codex stops at ' + clock(run.codex.minutes) + '; ProContract works for six hours with ' + run.pc.events.filter(function (e) { return e.kind === 'defeat'; }).length + ' counterexamples from the verifier.' });
-    var fs = full ? 13 : 12;
-    // Codex lane: the bar ends where the run ends
-    svg.appendChild(s('text', { x: L, y: yC - 12, 'font-size': fs, 'font-weight': 600, style: 'fill:' + C.harness }, 'Codex /goal'));
-    svg.appendChild(s('line', { x1: x(run.codex.minutes), y1: yC, x2: x(run.limit), y2: yC, stroke: C.rule, 'stroke-width': 1.5, 'stroke-dasharray': '1 5', 'stroke-linecap': 'round' }));
-    svg.appendChild(s('rect', { x: x(0), y: yC - 4, width: Math.max(2, x(run.codex.minutes) - x(0)), height: 8, rx: 2, fill: C.harness }));
-    svg.appendChild(s('line', { x1: x(run.codex.minutes), y1: yC - 10, x2: x(run.codex.minutes), y2: yC + 10, stroke: C.ink, 'stroke-width': 1.8 }));
-    svg.appendChild(s('text', { x: x(run.codex.minutes) + 8, y: yC + 4.5, 'font-size': fs, style: 'fill:' + C.ink }, '“done” at ' + clock(run.codex.minutes) + (W > 520 ? ': the run ends' : '')));
-    // ProContract lane
-    svg.appendChild(s('text', { x: L, y: yP - 14, 'font-size': fs, 'font-weight': 600, style: 'fill:' + C.kernel }, 'ProContract'));
-    svg.appendChild(s('rect', { x: x(0), y: yP - 4, width: x(run.limit) - x(0), height: 8, rx: 2, fill: C.kernelBg }));
+  /* One figure, three sizes. Codex above, ProContract below, one shared time axis.
+     mode 'hero': the large teaser, outcomes on the lane's label row, main events clickable.
+     mode 'mini': a tile. mode 'full': the viewer, every event selectable. */
+  var SIZE = {
+    hero: { H: 232, yC: 62, yP: 152, yA: 198, bar: 14, name: 17, out: 23, small: 14.5, ms: 1.55, L: 2, R: 2 },
+    mini: { H: 122, yC: 30, yP: 78, yA: 100, bar: 8, name: 12.5, out: 0, small: 12, ms: 1, L: 2, R: 9 },
+    full: { H: 142, yC: 36, yP: 90, yA: 116, bar: 9, name: 13.5, out: 0, small: 12.5, ms: 1.05, L: 10, R: 14 }
+  };
+  function timeline(run, W, mode) {
+    var z = SIZE[mode], narrow = W < 560;
+    if (mode === 'hero' && narrow) z = { H: 204, yC: 56, yP: 132, yA: 172, bar: 12, name: 15, out: 17, small: 13, ms: 1.25, L: 2, R: 8 };
+    var x = function (t) { return z.L + t / run.limit * (W - z.L - z.R); };
+    var defeats = run.pc.events.filter(function (e) { return e.kind === 'defeat'; }).length;
+    var svg = s('svg', { viewBox: '0 0 ' + W + ' ' + z.H, width: W, height: z.H, role: 'img', 'aria-label': 'Codex declares the task done at ' + clock(run.codex.minutes) + ' and scores ' + pct(run.codex.pass) + ' of hidden tests. ProContract works for six hours, receives ' + defeats + ' counterexamples from the verifier, and scores ' + pct(run.pc.pass) + '.' });
+    var yC = z.yC, yP = z.yP, yA = z.yA, hb = z.bar / 2;
+    // lane names, and on the teaser the outcome on the same row
+    svg.appendChild(s('text', { x: z.L, y: yC - hb - 12, 'font-size': z.name, 'font-weight': 600, style: 'fill:' + C.har }, 'Codex /goal'));
+    svg.appendChild(s('text', { x: z.L, y: yP - hb - 14, 'font-size': z.name, 'font-weight': 700, style: 'fill:' + C.pc }, 'ProContract'));
+    if (z.out) {
+      var o1 = s('text', { x: W - z.R, y: yC - hb - 12, 'text-anchor': 'end', 'font-size': z.small, style: 'fill:' + C.muted });
+      o1.appendChild(s('tspan', { 'font-size': z.out, 'font-weight': 700, style: 'fill:' + C.ink + ';letter-spacing:-.02em' }, pct(run.codex.pass)));
+      o1.appendChild(s('tspan', { dx: 7 }, narrow ? 'hidden tests' : 'of hidden tests'));
+      svg.appendChild(o1);
+      var o2 = s('text', { x: W - z.R, y: yP - hb - 14, 'text-anchor': 'end', 'font-size': z.small, style: 'fill:' + C.muted });
+      o2.appendChild(s('tspan', { 'font-size': z.out, 'font-weight': 700, style: 'fill:' + C.pc + ';letter-spacing:-.02em' }, pct(run.pc.pass)));
+      o2.appendChild(s('tspan', { dx: 7 }, narrow ? 'hidden tests' : 'of hidden tests'));
+      svg.appendChild(o2);
+    }
+    // Codex: the bar ends where the run ends; the unused allowance is a dotted line
+    var xe = x(run.codex.minutes);
+    svg.appendChild(s('line', { x1: xe + 6, y1: yC, x2: x(run.limit), y2: yC, stroke: C.dots, 'stroke-width': mode === 'hero' ? 2 : 1.5, 'stroke-dasharray': '0.1 ' + (mode === 'hero' ? 7 : 5), 'stroke-linecap': 'round' }));
+    svg.appendChild(s('rect', { x: x(0), y: yC - hb, width: Math.max(2, xe - x(0)), height: z.bar, rx: hb, fill: C.har }));
+    svg.appendChild(s('line', { x1: xe, y1: yC - hb - 5, x2: xe, y2: yC + hb + 5, stroke: C.ink, 'stroke-width': mode === 'hero' ? 2.4 : 1.8, 'stroke-linecap': 'round' }));
+    var doneText = '“done” at ' + clock(run.codex.minutes) + (mode !== 'mini' && !narrow ? ': the run ends' : '');
+    var dt = s('text', { x: xe + (mode === 'hero' ? 13 : 9), y: yC + z.small * 0.36, 'font-size': z.small, 'font-weight': mode === 'hero' ? 500 : 400, style: 'fill:' + C.ink + ';paint-order:stroke;stroke:' + (mode === 'hero' ? '#f6f7f9' : '#fff') + ';stroke-width:5px;stroke-linejoin:round' }, doneText);
+    svg.appendChild(dt);
+    // ProContract: the bar runs the whole allowance
+    svg.appendChild(s('rect', { x: x(0), y: yP - hb, width: x(run.limit) - x(0), height: z.bar, rx: hb, fill: C.pcBar }));
     // axis
-    svg.appendChild(s('line', { x1: x(0), y1: yA, x2: x(run.limit), y2: yA, stroke: C.muted, 'stroke-width': 1 }));
+    svg.appendChild(s('line', { x1: x(0), y1: yA, x2: x(run.limit), y2: yA, stroke: C.dots, 'stroke-width': 1 }));
     for (var hr = 0; hr <= 6; hr++) {
-      svg.appendChild(s('line', { x1: x(hr * 60), y1: yA, x2: x(hr * 60), y2: yA + 4, stroke: C.muted, 'stroke-width': 1 }));
-      if (full || hr % 2 === 0) svg.appendChild(s('text', { x: x(hr * 60), y: yA + 17, 'font-size': 11.5, 'text-anchor': hr === 0 ? 'start' : hr === 6 ? 'end' : 'middle', style: 'fill:' + C.muted, 'font-family': 'IBM Plex Mono, monospace' }, hr === 0 ? '0' : hr + ' h'));
+      svg.appendChild(s('line', { x1: x(hr * 60), y1: yA, x2: x(hr * 60), y2: yA + 5, stroke: C.dots, 'stroke-width': 1 }));
+      if (mode !== 'mini' || hr % 2 === 0) svg.appendChild(s('text', { x: x(hr * 60), y: yA + (mode === 'hero' ? 22 : 18), 'font-size': mode === 'hero' ? 13 : 11.5, 'text-anchor': hr === 0 ? 'start' : hr === 6 ? 'end' : 'middle', style: 'fill:' + C.faint }, hr === 0 ? '0' : hr + ' h'));
     }
     function glyph(g, kind, cx, cy) {
-      if (kind === 'propose') g.appendChild(s('path', { d: 'M' + cx + ' ' + (cy - 7) + 'L' + (cx + 6.5) + ' ' + (cy + 5.5) + 'H' + (cx - 6.5) + 'z', fill: C.propose }));
-      else if (kind === 'defeat') g.appendChild(s('path', { d: 'M' + (cx - 5) + ' ' + (cy - 5) + 'l10 10M' + (cx + 5) + ' ' + (cy - 5) + 'l-10 10', stroke: C.defeat, 'stroke-width': 2.4, fill: 'none', 'stroke-linecap': 'round' }));
-      else if (kind === 'inconclusive') g.appendChild(s('circle', { cx: cx, cy: cy, r: 4.6, fill: '#fff', stroke: C.muted, 'stroke-width': 1.5 }));
-      else if (kind === 'handover') g.appendChild(s('line', { x1: cx, y1: cy + 7, x2: cx, y2: cy + 16, stroke: C.harness, 'stroke-width': 2 }));
-      else if (kind === 'note') g.appendChild(s('line', { x1: cx, y1: cy - 4, x2: cx, y2: cy + 4, stroke: '#fff', 'stroke-width': 1.6 }));
-      else if (kind === 'issue' || kind === 'end') g.appendChild(s('rect', { x: cx - 1.5, y: cy - 8, width: 3, height: 16, fill: C.kernel }));
-      else if (kind === 'done') g.appendChild(s('rect', { x: cx - 1.5, y: cy - 9, width: 3, height: 18, fill: C.ink }));
+      var m = z.ms;
+      if (kind === 'propose') g.appendChild(s('path', { d: 'M' + cx + ' ' + (cy - 7.5 * m) + 'L' + (cx + 6.8 * m) + ' ' + (cy + 5.5 * m) + 'H' + (cx - 6.8 * m) + 'z', fill: C.sub, stroke: '#fff', 'stroke-width': mode === 'hero' ? 1.5 : 1, 'stroke-linejoin': 'round' }));
+      else if (kind === 'defeat') {
+        g.appendChild(s('path', { d: 'M' + (cx - 5 * m) + ' ' + (cy - 5 * m) + 'l' + 10 * m + ' ' + 10 * m + 'M' + (cx + 5 * m) + ' ' + (cy - 5 * m) + 'l' + (-10 * m) + ' ' + 10 * m, stroke: '#fff', 'stroke-width': 2.4 * m + 2.4, fill: 'none', 'stroke-linecap': 'round' }));
+        g.appendChild(s('path', { d: 'M' + (cx - 5 * m) + ' ' + (cy - 5 * m) + 'l' + 10 * m + ' ' + 10 * m + 'M' + (cx + 5 * m) + ' ' + (cy - 5 * m) + 'l' + (-10 * m) + ' ' + 10 * m, stroke: C.no, 'stroke-width': 2.4 * m, fill: 'none', 'stroke-linecap': 'round' }));
+      }
+      else if (kind === 'inconclusive') g.appendChild(s('circle', { cx: cx, cy: cy, r: 4.6 * m, fill: '#fff', stroke: C.muted, 'stroke-width': 1.5 }));
+      else if (kind === 'handover') g.appendChild(s('line', { x1: cx, y1: cy + hb + 4, x2: cx, y2: cy + hb + 12, stroke: C.har, 'stroke-width': 2, 'stroke-linecap': 'round' }));
+      else if (kind === 'note') g.appendChild(s('line', { x1: cx, y1: cy - hb + 1.5, x2: cx, y2: cy + hb - 1.5, stroke: '#fff', 'stroke-width': 1.5 }));
     }
+    var show = { hero: { propose: 1, defeat: 1, inconclusive: 1 }, mini: { propose: 1, defeat: 1, inconclusive: 1 }, full: { issue: 1, propose: 1, defeat: 1, inconclusive: 1, handover: 1, end: 1, note: 1, done: 1 } }[mode];
     function lane(events, lname, cy) {
       events.forEach(function (e, i) {
-        if (!full && (e.kind === 'handover' || e.kind === 'note' || e.kind === 'issue' || e.kind === 'end' || e.kind === 'done')) return;
-        var g = s('g', full ? { 'class': 'mk', tabindex: 0, role: 'button', 'data-lane': lname, 'data-i': i, 'aria-label': (lname === 'cx' ? 'Codex, ' : 'ProContract, ') + label(e, lname) + ' at ' + clock(e.t) } : {});
-        var cx = x(e.t), hy = e.kind === 'handover' ? cy + 11.5 : cy;
-        if (full) g.appendChild(s('circle', { 'class': 'hit', cx: cx, cy: hy, r: e.kind === 'note' ? 7 : 11, fill: 'transparent' }));
+        if (!show[e.kind]) return;
+        var active = mode !== 'mini';
+        var g = s('g', active ? { 'class': 'mk', tabindex: 0, role: 'button', 'data-lane': lname, 'data-i': i, 'aria-label': (lname === 'cx' ? 'Codex, ' : 'ProContract, ') + label(e, lname) + ' at ' + clock(e.t) } : {});
+        var cx = x(e.t), hy = e.kind === 'handover' ? cy + hb + 8 : cy;
+        if (active) g.appendChild(s('circle', { 'class': 'hit', cx: cx, cy: hy, r: e.kind === 'note' ? 7 : (mode === 'hero' ? 15 : 11), fill: 'transparent' }));
         glyph(g, e.kind, cx, cy);
         svg.appendChild(g);
       });
     }
     lane(run.pc.events, 'pc', yP);
-    if (full) lane(run.codex.events, 'cx', yC);
-    if (full) svg.appendChild(s('line', { id: 'v-cursor', x1: 0, y1: 6, x2: 0, y2: yA, stroke: C.ink, 'stroke-width': 1, 'stroke-dasharray': '3 3', opacity: .55 }));
+    if (mode === 'full') lane(run.codex.events, 'cx', yC);
+    if (mode === 'hero') {   // the "done" tick opens Codex's final message
+      var last = run.codex.events.length - 1;
+      var g = s('g', { 'class': 'mk', tabindex: 0, role: 'button', 'data-lane': 'cx', 'data-i': last, 'aria-label': 'Codex declares the goal complete at ' + clock(run.codex.minutes) });
+      g.appendChild(s('circle', { 'class': 'hit', cx: xe, cy: yC, r: 15, fill: 'transparent' }));
+      svg.appendChild(g);
+    }
+    if (mode === 'full') svg.appendChild(s('line', { id: 'v-cursor', x1: 0, y1: 8, x2: 0, y2: yA, stroke: C.ink, 'stroke-width': 1, 'stroke-dasharray': '3 3', opacity: .5 }));
     svg._x = x;
     return svg;
   }
-  function label(e, lname) {
-    if (lname === 'cx') return e.kind === 'done' ? 'declares the goal complete' : 'progress note';
-    return { issue: 'the Contract is issued', propose: e.same ? 'the same artifact is submitted again' : 'the worker ends its turn, artifact ' + e.n + ' is frozen', defeat: 'counterexample to artifact ' + e.n, inconclusive: 'the verifier cannot decide', handover: 'work goes to a fresh worker', end: 'six hours are used' }[e.kind];
+  function bindMarkers(svg, pick) {
+    Array.prototype.forEach.call(svg.querySelectorAll('.mk'), function (g) {
+      var go = function () { pick(g.getAttribute('data-lane'), +g.getAttribute('data-i'), g); };
+      g.addEventListener('click', go);
+      g.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); go(); } });
+    });
+  }
+
+  /* ---- teaser under the title ---- */
+  var tabs = $('teaser-tabs'), stage = $('teaser-fig'), shown = 0;
+  function drawTeaser() {
+    if (!stage || !RUNS.length) return;
+    var run = RUNS[shown], W = Math.max(280, Math.floor(stage.clientWidth) || 980);
+    stage.textContent = '';
+    var svg = timeline(run, W, 'hero');
+    stage.appendChild(svg);
+    bindMarkers(svg, function (lane, i, g) { openRun(shown, g, lane, i); });
+    $('teaser-cap').textContent = 'Task: rebuild a program that ' + run.what + ' (' + run.repo + '). The same model, GPT-6 Luna, and six hours allowed in each run. Hidden tests are run after a run ends; no agent sees them. Select a marker to read what was said.';
+    Array.prototype.forEach.call(tabs.children, function (b, k) { b.setAttribute('aria-selected', k === shown ? 'true' : 'false'); b.tabIndex = k === shown ? 0 : -1; });
+  }
+  if (tabs && RUNS.length) {
+    RUNS.forEach(function (run, k) {
+      var b = h('button', { 'class': 'tab', type: 'button', role: 'tab', text: run.id });
+      b.addEventListener('click', function () { shown = k; drawTeaser(); });
+      b.addEventListener('keydown', function (ev) {
+        if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return;
+        shown = (shown + (ev.key === 'ArrowRight' ? 1 : RUNS.length - 1)) % RUNS.length; drawTeaser(); tabs.children[shown].focus();
+      });
+      tabs.appendChild(b);
+    });
+    $('teaser-open').addEventListener('click', function () { openRun(shown, $('teaser-open')); });
+    drawTeaser();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawTeaser);
   }
 
   /* ---- tiles ---- */
-  var tiles = document.getElementById('run-tiles');
+  var tiles = $('run-tiles');
   if (tiles) RUNS.forEach(function (run, idx) {
     var b = h('button', { 'class': 'run', type: 'button', 'aria-haspopup': 'dialog' }, [
       h('span', { 'class': 'task', text: run.repo }),
       h('h3', { text: run.head }),
       h('p', { text: 'Task: rebuild a program that ' + run.what + '. ' + run.blurb })
     ]);
-    b.appendChild(timeline(run, 328, false));
+    b.appendChild(timeline(run, 300, 'mini'));
     b.appendChild(h('div', { 'class': 'scores' }, [
-      h('div', {}, [h('b', { text: run.codex.pass.toFixed(1) + '%' }), 'Codex, hidden tests']),
-      h('div', { 'class': 'pc' }, [h('b', { text: (run.pc.pass === 100 ? '100' : run.pc.pass.toFixed(1)) + '%' }), 'ProContract, hidden tests'])
+      h('div', {}, [h('b', { text: pct(run.codex.pass) }), 'Codex, hidden tests']),
+      h('div', { 'class': 'pc' }, [h('b', { text: pct(run.pc.pass) }), 'ProContract, hidden tests'])
     ]));
     b.appendChild(h('span', { 'class': 'open', text: 'Inspect trajectory →' }));
     b.addEventListener('click', function () { openRun(idx, b); });
@@ -97,38 +165,33 @@
   });
 
   /* ---- viewer ---- */
-  var dlg = document.getElementById('viewer'), cur = null, opener = null;
-  function $(id) { return document.getElementById(id); }
-  function openRun(idx, from) {
-    var run = RUNS[idx];
-    var merged = [];
-    run.codex.events.forEach(function (e, i) { merged.push({ lane: 'cx', i: i, t: e.t }); });
-    run.pc.events.forEach(function (e, i) { merged.push({ lane: 'pc', i: i, t: e.t }); });
+  var dlg = $('viewer'), cur = null, opener = null;
+  function openRun(idx, from, lane, i) {
+    var run = RUNS[idx], merged = [];
+    run.codex.events.forEach(function (e, k) { merged.push({ lane: 'cx', i: k, t: e.t }); });
+    run.pc.events.forEach(function (e, k) { merged.push({ lane: 'pc', i: k, t: e.t }); });
     merged.sort(function (a, b) { return a.t - b.t || (a.lane === 'cx' ? -1 : 1); });
     cur = { idx: idx, run: run, merged: merged, at: 0 };
-    // start at the moment Codex declares the task complete
-    merged.forEach(function (m, k) { if (m.lane === 'cx' && run.codex.events[m.i].kind === 'done') cur.at = k; });
+    merged.forEach(function (m, k) {
+      if (lane ? (m.lane === lane && m.i === i) : (m.lane === 'cx' && run.codex.events[m.i].kind === 'done')) cur.at = k;   // default: the moment Codex says "done"
+    });
     $('v-title').textContent = run.repo;
     $('v-sub').textContent = 'Task: rebuild a program that ' + run.what + '. GPT-6 Luna, six hours allowed in each run. Codex: ' + run.codex.requests + ' model requests. ProContract: ' + run.pc.requests + '.';
     if (from) opener = from;
     if (!dlg.open) { if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', ''); }
+    dlg.scrollTop = 0;
     drawTime(); show();
     try { history.replaceState(null, '', '#run-' + run.id); } catch (e) {}
   }
+  function find(lane, i) { for (var k = 0; k < cur.merged.length; k++) if (cur.merged[k].lane === lane && cur.merged[k].i === i) return k; return -1; }
+  function latest(events, t) { var j = -1; events.forEach(function (e, i) { if (e.t <= t + 1e-9) j = i; }); return j; }
   function drawTime() {
     var box = $('v-time'); box.textContent = '';
     var W = Math.max(300, Math.floor(box.clientWidth - 2) || 1100);
-    var svg = timeline(cur.run, W, true);
+    var svg = timeline(cur.run, W, 'full');
     box.appendChild(svg); cur.svg = svg;
-    Array.prototype.forEach.call(svg.querySelectorAll('.mk'), function (g) {
-      var pick = function () { var k = find(g.getAttribute('data-lane'), +g.getAttribute('data-i')); if (k >= 0) { cur.at = k; show(); } };
-      g.addEventListener('click', pick);
-      g.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); pick(); } });
-    });
+    bindMarkers(svg, function (lane, i) { var k = find(lane, i); if (k >= 0) { cur.at = k; show(); } });
   }
-  function find(lane, i) { for (var k = 0; k < cur.merged.length; k++) if (cur.merged[k].lane === lane && cur.merged[k].i === i) return k; return -1; }
-  function latest(events, t) { var j = -1; events.forEach(function (e, i) { if (e.t <= t + 1e-9) j = i; }); return j; }
-
   function show() {
     var m = cur.merged[cur.at], run = cur.run, T = m.t;
     $('v-at').textContent = clock(T);
@@ -147,6 +210,9 @@
     box.appendChild(h('h4', { text: title }));
     box.appendChild(h('div', { 'class': 'when', text: (selected ? 'at ' : 'latest event, at ') + clock(e.t) }));
   }
+  function evalLine(p) {
+    return h('div', { 'class': 'eval' }, ['Evaluation after the run: ', h('b', { text: pct(p) + ' of hidden tests' }), '. The agent never sees these tests or this number.']);
+  }
   function paneCodex(box, run, i, T, selected) {
     var e = run.codex.events[i < 0 ? 0 : i], over = T > run.codex.minutes + 1e-9;
     head(box, 'Codex /goal', e.kind === 'done' ? 'The agent declares the goal complete' : 'The agent reports progress', e, selected);
@@ -157,18 +223,13 @@
       box.appendChild(evalLine(run.codex.pass));
     }
   }
-  function evalLine(p) {
-    var d = h('div', { 'class': 'eval' }, ['Evaluation after the run: ', h('b', { text: (p === 100 ? '100' : p.toFixed(1)) + '% of hidden tests' }), '. The agent never sees these tests or this number.']);
-    return d;
-  }
   function kline(e, prev) {
     var d = h('div', { 'class': 'kline' });
     if (e.cmd) {
       d.appendChild(h('span', { 'class': 'lab', text: 'Kernel: ' + e.cmd + ' from the ' + ({ issuer: 'issuer, for the user', executor: 'worker', verifier: 'verifier' }[e.role]) + ': admitted' }));
-      var c = h('code');
+      var c = h('code'); c.style.whiteSpace = 'pre-wrap';
       if (prev) { c.appendChild(h('s', { text: stateLine(prev) })); c.appendChild(document.createTextNode('\n')); }
       c.appendChild(document.createTextNode(stateLine(e.state)));
-      c.style.whiteSpace = 'pre-wrap';
       d.appendChild(c);
     } else {
       d.appendChild(h('span', { 'class': 'lab', text: 'Kernel: no request, nothing recorded' }));
@@ -214,7 +275,7 @@
   if (dlg) {
     $('v-prev').addEventListener('click', function () { step(-1); });
     $('v-next').addEventListener('click', function () { step(1); });
-    $('v-other').addEventListener('click', function () { openRun((cur.idx + 1) % RUNS.length); dlg.scrollTop = 0; });
+    $('v-other').addEventListener('click', function () { openRun((cur.idx + 1) % RUNS.length); });
     $('v-close').addEventListener('click', function () { dlg.close(); });
     dlg.addEventListener('click', function (ev) { if (ev.target === dlg) dlg.close(); });
     dlg.addEventListener('keydown', function (ev) {
@@ -226,11 +287,14 @@
       if (opener && opener.focus) opener.focus();
       cur = null;
     });
-    var rz;
-    window.addEventListener('resize', function () { clearTimeout(rz); rz = setTimeout(function () { if (cur && dlg.open) { drawTime(); show(); } }, 120); });
     var want = (location.hash || '').replace('#run-', '');
-    RUNS.forEach(function (r, i) { if (r.id === want) openRun(i); });
+    RUNS.forEach(function (r, k) { if (r.id === want) openRun(k); });
   }
+  var rz;
+  window.addEventListener('resize', function () {
+    clearTimeout(rz);
+    rz = setTimeout(function () { drawTeaser(); if (cur && dlg.open) { drawTime(); show(); } }, 120);
+  });
 
   /* ---- citation ---- */
   var copy = $('copy-bib');

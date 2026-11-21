@@ -7,216 +7,154 @@
   <meta name="description" content="ProContract takes the task out of the agent harness: a small deterministic kernel holds what is owed and records progress only when an independent verifier accepts the exact work submitted.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:wght@400;600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./static/css/style.css">
 </head>
 <body>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   <defs>
-    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#18222D"/></marker>
-    <marker id="ah-d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#B54732"/></marker>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#1f2328"/></marker>
+    <marker id="ah-d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#bf4b30"/></marker>
     <marker id="ah-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#F8FAFC"/></marker>
     <marker id="ah-m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#94A3B8"/></marker>
   </defs>
 </svg>
 
-<!-- Hero -->
 <header class="hero" id="top">
-  <div class="wrap">
-    <div class="topbar">
-      <a class="wordmark" href="#top">ProContract</a>
-      <nav class="toplinks" aria-label="Resources">
-        <a href="./static/files/procontract.pdf">Paper</a>
-        <a href="https://github.com/Lemutisme/ProContract">Code</a>
-        <a href="#runs">Runs</a>
-      </nav>
-    </div>
-    <div class="hero-grid">
-      <div>
-        <p class="eyebrow">Built on Codex</p>
-        <h1>ProContract</h1>
-        <p class="hero-sub">Decoupling Responsibility and Progress from an Evolvable Harness</p>
-        <p class="hero-lead">Long-horizon agents stop early, and their harnesses cannot be changed safely. Both have one cause: the harness that works on a task also holds what is owed and decides when it is done. <strong>ProContract takes the task out of the harness.</strong></p>
-        <div class="actions">
-          <a class="btn btn-primary" href="./static/files/procontract.pdf">Read the paper</a>
-          <a class="btn btn-line" href="#runs">Inspect a run</a>
-          <a class="btn btn-quiet" href="https://github.com/Lemutisme/ProContract">Code on GitHub &rarr;</a>
-        </div>
-      </div>
-      <figure class="hero-fig">
-        <svg viewBox="0 0 400 322" role="img" aria-label="One Contract held by the kernel stays outstanding while harness version 1 stops and is replaced by version 2; each version can only submit artifacts to it.">
-          <text x="0" y="12" font-family="IBM Plex Mono, monospace" font-size="12" letter-spacing="1" style="fill:#5EEAD4">KERNEL</text>
-          <rect x="1" y="22" width="398" height="98" rx="10" fill="rgba(45,212,191,.10)" stroke="#2DD4BF" stroke-width="1.5"/>
-          <text x="16" y="52" font-family="Space Grotesk, sans-serif" font-weight="600" font-size="20" style="fill:#F8FAFC">Contract</text>
-          <text x="16" y="73" font-size="14" style="fill:#A7B2BD">what is owed, changed only by the user</text>
-          <rect x="285" y="35" width="100" height="26" rx="13" fill="#FFF3D6"/>
-          <text x="335" y="52.5" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="12.5" style="fill:#8A5A12">outstanding</text>
-          <g font-family="IBM Plex Mono, monospace" font-size="12.5">
-            <rect x="16" y="85" width="46" height="23" rx="4" fill="none" stroke="#F2A391"/><text x="39" y="101" text-anchor="middle" style="fill:#F2A391">x &#x2715;</text>
-            <rect x="70" y="85" width="46" height="23" rx="4" fill="none" stroke="#F2A391"/><text x="93" y="101" text-anchor="middle" style="fill:#F2A391">y &#x2715;</text>
-            <rect x="124" y="85" width="46" height="23" rx="4" fill="none" stroke="#A5B4FC" stroke-dasharray="3 3"/><text x="147" y="101" text-anchor="middle" style="fill:#A5B4FC">z</text>
-          </g>
-          <text x="385" y="101" text-anchor="end" font-size="13" style="fill:#A7B2BD">judgments of exact artifacts</text>
-          <line x1="0" y1="150" x2="400" y2="150" stroke="rgba(255,255,255,.38)" stroke-dasharray="4 5"/>
-          <text x="66" y="143" font-size="12.5" style="fill:#A7B2BD">only the kernel writes above</text>
-          <g stroke="#F8FAFC" stroke-width="1.4" fill="none">
-            <line x1="52" y1="210" x2="52" y2="124" marker-end="url(#ah-w)" opacity=".55"/>
-            <line x1="236" y1="210" x2="236" y2="124" marker-end="url(#ah-w)"/>
-            <line x1="330" y1="210" x2="330" y2="124" marker-end="url(#ah-w)"/>
-          </g>
-          <g font-family="IBM Plex Mono, monospace" font-size="12">
-            <text x="60" y="184" style="fill:#A7B2BD">Propose x</text>
-            <text x="244" y="184" style="fill:#F8FAFC">Propose y</text>
-            <text x="338" y="184" style="fill:#F8FAFC">z</text>
-          </g>
-          <rect x="1" y="212" width="150" height="80" rx="8" fill="rgba(148,163,184,.08)" stroke="#64748B" stroke-dasharray="5 4"/>
-          <text x="14" y="235" font-family="IBM Plex Mono, monospace" font-size="12.5" style="fill:#94A3B8">harness v1</text>
-          <text x="14" y="258" font-size="14" style="fill:#A7B2BD">says &#8220;done&#8221;, stops</text>
-          <text x="14" y="277" font-size="13" style="fill:#7D8B98">closes nothing</text>
-          <line x1="155" y1="252" x2="175" y2="252" stroke="#94A3B8" stroke-width="1.4" marker-end="url(#ah-m)"/>
-          <rect x="180" y="212" width="219" height="80" rx="8" fill="rgba(148,163,184,.18)" stroke="#94A3B8"/>
-          <text x="194" y="235" font-family="IBM Plex Mono, monospace" font-size="12.5" style="fill:#CBD5E1">harness v2</text>
-          <text x="194" y="258" font-size="14" style="fill:#F8FAFC">worker, context, tools, strategy</text>
-          <text x="194" y="277" font-size="13" style="fill:#A7B2BD">written by developers or agents</text>
-          <text x="0" y="316" font-family="IBM Plex Mono, monospace" font-size="12" letter-spacing="1" style="fill:#94A3B8">HARNESS, REPLACEABLE</text>
-        </svg>
-        <figcaption>The Contract stays where the harness can read it and cannot change it. A harness that stops, or is replaced, leaves it outstanding.</figcaption>
-      </figure>
-    </div>
+  <div class="col">
+    <h1>ProContract</h1>
+    <p class="sub">Decoupling Responsibility and Progress from an Evolvable Harness</p>
+    <p class="authors">
+      <span>Duo Zhou<sup>1,2,&dagger;</sup></span> <span>Ruizhong Qiu<sup>1</sup></span> <span>Yuji Zhang<sup>1</sup></span> <span>Kaifeng Jin<sup>1</sup></span> <span>Hanghang Tong<sup>1</sup></span> <span>Eddie Zhang<sup>2</sup></span> <span>Jerry Bai<sup>2</sup></span>
+    </p>
+    <p class="affil">
+      <span><img src="./static/images/logo_uiuc.svg" alt=""><span><sup>1</sup>University of Illinois Urbana-Champaign</span></span>
+      <span><img src="./static/images/logo_isara.svg" alt=""><span><sup>2</sup>Isara Laboratories</span></span>
+    </p>
+    <p class="note">&dagger; Work done during an internship at Isara.</p>
+    <nav class="pills" aria-label="Resources">
+      <a class="pill" href="./static/files/procontract.pdf"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7z M14 3v5h5 M10 13h6 M10 17h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>Paper</a>
+      <a class="pill" href="https://github.com/Lemutisme/ProContract"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7l-5 5 5 5 M15 7l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>Code</a>
+      <a class="pill" href="#runs"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg>Runs</a>
+      <a class="pill" href="#citation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 17c2-1 3-3 3-6H6V6h5v5c0 4-2 6-5 6z M14 17c2-1 3-3 3-6h-3V6h5v5c0 4-2 6-5 6z" fill="currentColor"/></svg>BibTeX</a>
+    </nav>
   </div>
 </header>
 
-<div class="credits">
-  <div class="wrap">
-    <div>
-      <p class="authors">
-        <span>Duo Zhou<sup>1,2,&dagger;</sup></span> <span>Ruizhong Qiu<sup>1</sup></span> <span>Yuji Zhang<sup>1</sup></span> <span>Kaifeng Jin<sup>1</sup></span> <span>Hanghang Tong<sup>1</sup></span> <span>Eddie Zhang<sup>2</sup></span> <span>Jerry Bai<sup>2</sup></span>
-      </p>
-      <p class="credit-note">&dagger; Work done during an internship at Isara.</p>
+<section class="teaser" aria-label="One task under Codex and under ProContract">
+  <div class="col">
+    <div class="tabs" role="tablist" aria-label="Task" id="teaser-tabs"></div>
+    <div class="stage">
+      <div id="teaser-fig"></div>
+      <div class="stage-foot">
+        <div class="legend" aria-label="Markers">
+          <span><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M7 2L12.5 12H1.5z" fill="#3949a3"/></svg>the worker ends its turn: the artifact is frozen</span>
+          <span><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 2.5l9 9M11.5 2.5l-9 9" stroke="#bf4b30" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>the verifier's counterexample</span>
+          <span><svg viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="#fff" stroke="#656d76" stroke-width="1.5"/></svg>the verifier cannot decide</span>
+        </div>
+        <button class="linkbtn" type="button" id="teaser-open">Read this run step by step &rarr;</button>
+      </div>
     </div>
-    <div class="affils">
-      <span class="affil"><img src="./static/images/logo_uiuc.svg" alt=""><span><sup>1</sup> University of Illinois Urbana-Champaign</span></span>
-      <span class="affil"><img src="./static/images/logo_isara.svg" alt=""><span><sup>2</sup> Isara Laboratories</span></span>
-    </div>
+    <p class="caption" id="teaser-cap">The same task, the same model and six hours allowed, under Codex <code>/goal</code> and under ProContract.</p>
+    <noscript><p class="caption">The trajectories need JavaScript. Appendix C.7 of the paper follows five tasks under Codex and under ProContract.</p></noscript>
   </div>
-</div>
-
-<div class="toc">
-  <div class="wrap">
-    <nav class="wide" aria-label="On this page">
-      <a href="#problem">Why &#8220;done&#8221; fails</a>
-      <a href="#walkthrough">One task under ProContract</a>
-      <a href="#runs">Real runs</a>
-      <a href="#kernel">What the kernel preserves</a>
-      <a href="#results">Results</a>
-      <a href="#evolve">An evolvable harness</a>
-      <a href="#resources">Run it, paper, citation</a>
-    </nav>
-    <details>
-      <summary>On this page</summary>
-      <nav aria-label="On this page">
-        <a href="#problem">Why &#8220;done&#8221; fails</a>
-        <a href="#walkthrough">One task under ProContract</a>
-        <a href="#runs">Real runs</a>
-        <a href="#kernel">What the kernel preserves</a>
-        <a href="#results">Results</a>
-        <a href="#evolve">An evolvable harness</a>
-        <a href="#resources">Run it, paper, citation</a>
-      </nav>
-    </details>
-  </div>
-</div>
+</section>
 
 <main>
 
-<!-- 1. Why "done" fails -->
-<section class="section" id="problem">
-  <div class="wrap">
-    <p class="kicker">The problem</p>
-    <h2>An agent's &#8220;done&#8221; measures its method, not the task</h2>
-    <p class="lead">Given six hours to rebuild a program from an executable it can run but whose tests it never sees, Codex in its persistent <code>/goal</code> mode stops long before the allowance ends. The model is not the limit: the same model stops at a different time under each harness.</p>
+<section class="sec" id="abstract">
+  <div class="col">
+    <h2>Abstract</h2>
+    <div class="txt abstract" style="margin-top:28px">
+      <p>Two problems now limit long-horizon AI agents: they stop early and leave solvable work undone, and their harnesses cannot be changed safely, by developers or by the agents themselves. Both have one cause: the harness that works on a task also holds what is owed and decides when it is done. An agent's &ldquo;done&rdquo; therefore measures its method, not the task. Given six hours to rebuild a program, Codex, in its mode built for long tasks, declares 197 of 200 tasks complete after a median of 36 minutes, and one program passes every hidden test. The decision fails in two ways: in <em>progress misjudgment</em> the agent takes a passing check of its own for completion, and in <em>responsibility dilution</em> it narrows the task to what its method covers; 62 of the 197 completion messages name a gap and declare the task complete. The model is not the limit: one model stops after a median of 24, 36, or 90 minutes under three harnesses, and when its &ldquo;done&rdquo; is refused the same agent keeps finding and fixing failures for five more hours. But nothing then protects the task, and it begins to rewrite its goal into a narrower one; and when agents rewrite their own harness, each rewrite can change what is owed.</p>
+      <p>ProContract takes the task out of the harness. A small deterministic kernel holds each task's Contract and records progress only when an independent verifier accepts the exact work submitted; what is owed and what was accepted are the same under every version of the harness, including versions the agent writes. The harness thereby becomes <em>evolvable</em>: a run that stops with its task open exposes a defect of the harness, and revisions are decided by controls on the failing inputs, not by benchmark scores; over two rounds the share of runs that stop early at such a defect falls from 40% to 4%. Built on Codex, ProContract scores 5.07 points above Codex on the same model and executable, and with GPT-6.1 Sol it sets the state of the art in mean pass rate on ProgramBench, 89.70%, at 62% of the best public entry's cost.</p>
+    </div>
+  </div>
+</section>
 
-    <figure class="stops">
-      <div class="stop-chart" role="img" aria-label="Median time before the agent stops, of six hours allowed: 24 minutes under mini-SWE-agent, 36 minutes under Codex /goal, 90 minutes under Recursive Language Models.">
-        <div class="stop-row"><span class="nm">mini-SWE-agent</span><span class="track"><i style="width:6.67%"></i><em style="left:calc(6.67% + 8px)">24 min</em></span></div>
-        <div class="stop-row"><span class="nm">Codex <code>/goal</code></span><span class="track"><i style="width:10%"></i><em style="left:calc(10% + 8px)">36 min</em></span></div>
-        <div class="stop-row"><span class="nm">Recursive Language Models</span><span class="track"><i style="width:25%"></i><em style="left:calc(25% + 8px)">90 min</em></span></div>
-        <div class="stop-row axis" aria-hidden="true"><span class="nm"></span><span class="ticks"><span>0</span><span>1 h</span><span>2 h</span><span>3 h</span><span>4 h</span><span>5 h</span><span>6 h</span></span></div>
+<section class="sec band" id="problem">
+  <div class="col">
+    <h2>An agent's &#8220;done&#8221; measures its method, not the task</h2>
+    <p class="intro">Given six hours to rebuild a program from an executable it can run but whose tests it never sees, Codex in its persistent <code>/goal</code> mode stops long before the allowance ends. The model is not the limit: the same model stops at a different time under each harness.</p>
+
+    <figure>
+      <div class="bars" role="img" aria-label="Median time before the agent stops, of six hours allowed: 24 minutes under mini-SWE-agent, 36 minutes under Codex /goal, 90 minutes under Recursive Language Models.">
+        <div class="bar-row"><span class="nm">mini-SWE-agent</span><span class="track"><i style="width:6.67%"></i><em style="left:calc(6.67% + 9px)">24 min</em></span></div>
+        <div class="bar-row"><span class="nm">Codex <code>/goal</code></span><span class="track"><i style="width:10%"></i><em style="left:calc(10% + 9px)">36 min</em></span></div>
+        <div class="bar-row"><span class="nm">Recursive Language Models</span><span class="track"><i style="width:25%"></i><em style="left:calc(25% + 9px)">90 min</em></span></div>
+        <div class="bar-row axis" aria-hidden="true"><span class="nm"></span><span class="ticks"><span>0</span><span>1 h</span><span>2 h</span><span>3 h</span><span>4 h</span><span>5 h</span><span>6 h</span></span></div>
       </div>
       <figcaption>Median time before one model stops, under three harnesses, with six hours allowed.</figcaption>
     </figure>
 
-    <div class="facts">
-      <div class="fact"><b>197<small> of 200</small></b><span>tasks declared complete by Codex <code>/goal</code></span></div>
-      <div class="fact"><b>36<small> min</small></b><span>median time before &#8220;done&#8221;</span></div>
-      <div class="fact"><b>1</b><span>program passes every hidden test</span></div>
-      <div class="fact"><b>5.3<small> h</small></b><span>more of finding and fixing failures when &#8220;done&#8221; is refused</span></div>
+    <div class="nums">
+      <div class="num"><b>197<small>of 200</small></b><span>tasks declared complete by Codex <code>/goal</code></span></div>
+      <div class="num"><b>36<small>min</small></b><span>median time before &#8220;done&#8221;</span></div>
+      <div class="num"><b>1</b><span>program passes every hidden test</span></div>
+      <div class="num"><b>5.3<small>h</small></b><span>more of finding and fixing failures when &#8220;done&#8221; is refused</span></div>
     </div>
 
     <div class="modes">
       <div class="mode">
         <h3>Progress misjudgment</h3>
         <p>The agent takes a passing check of its own for completion. All 197 completion messages cite a successful rebuild; whether a message claims a comparison with the reference is uncorrelated with its score.</p>
-        <blockquote class="said"><q>&#8220;&hellip;all 69 differential cases matched the reference.&#8221;</q><footer><span>chroma &middot; Codex <code>/goal</code>, GPT-6 Luna</span><b>21.7% of hidden tests</b></footer></blockquote>
+        <blockquote class="said"><q>&#8220;&hellip;all 69 differential cases matched the reference.&#8221;</q><footer>chroma, Codex <code>/goal</code>, GPT-6 Luna &middot; <b>21.7% of hidden tests</b></footer></blockquote>
       </div>
       <div class="mode dilute">
         <h3>Responsibility dilution</h3>
         <p>The task shrinks to what the method covers. In 62 of the 197 messages the agent names a gap and marks the goal complete in the same message. Forced to continue, it rewrites its goal into a narrower one in 5 of 32 runs.</p>
-        <blockquote class="said"><q>&#8220;This implements a broad subset of PHP, not the complete language.&#8221;</q><footer><span>php &middot; Codex <code>/goal</code>, GPT-6 Luna</span><b>17.8% of hidden tests</b></footer></blockquote>
+        <blockquote class="said"><q>&#8220;This implements a broad subset of PHP, not the complete language.&#8221;</q><footer>php, Codex <code>/goal</code>, GPT-6 Luna &middot; <b>17.8% of hidden tests</b></footer></blockquote>
       </div>
     </div>
 
-    <figure class="plate">
-      <h3>Where agents stop, and what they say when they do</h3>
+    <figure class="fig">
       <a class="img" href="./static/images/analysis_stopping.png"><img src="./static/images/analysis_stopping.png" alt="Time before stopping under several harnesses; pass rates of the artifacts declared complete; quotes from completion messages" loading="lazy" width="2200" height="1040"></a>
-      <figcaption>ProgramBench, 200 tasks, six hours each. <a href="./static/images/analysis_stopping.png">Open full figure</a></figcaption>
+      <figcaption>Where agents stop, and what they say when they do. ProgramBench, 200 tasks, six hours each.</figcaption>
     </figure>
   </div>
 </section>
 
-<!-- 2. One task under ProContract -->
-<section class="section plain" id="walkthrough">
-  <div class="wrap">
-    <p class="kicker">The mechanism</p>
+<section class="sec" id="walkthrough">
+  <div class="col">
     <h2>One task under ProContract</h2>
-    <p class="lead">A <strong>Contract</strong> holds the responsibility, what the agent owes, and its progress, what has been accepted as meeting it. Only a small deterministic <strong>kernel</strong> may update it, and only on a request from the role that request belongs to. Everything else is harness.</p>
+    <p class="intro">A <strong>Contract</strong> holds the responsibility, what the agent owes, and its progress, what has been accepted as meeting it. Only a small deterministic <strong>kernel</strong> may update it, and only on a request from the role that request belongs to. Everything else is harness, and the harness can be replaced.</p>
 
     <div class="walk" role="list" aria-label="One task in six steps: the kernel's Contract above, the replaceable harness below">
       <span class="lane-label k">Kernel</span><span class="lane-label c">Request</span><span class="lane-label h">Harness</span>
       <div class="beat" role="listitem">
-        <div class="k"><span class="num">1 &middot; start</span><span class="badge">outstanding</span><p>The Contract is issued. The task text is kept verbatim.</p></div>
+        <div class="k"><span class="step"><i>1</i>start</span><span class="badge">outstanding</span><p>The Contract is issued. The task text is kept verbatim.</p></div>
         <div class="c"><span class="cmd">Issue</span><span>from the user</span></div>
         <div class="h"><b>harness v1</b>The worker reads the task and starts.</div>
       </div>
       <div class="beat" role="listitem">
-        <div class="k"><span class="num">2 &middot; submit</span><span class="badge">outstanding</span><p>Candidate <code>x</code>: the workspace, frozen.</p></div>
+        <div class="k"><span class="step"><i>2</i>submit</span><span class="badge">outstanding</span><p>Candidate <code>x</code>: the workspace, frozen.</p></div>
         <div class="c"><span class="cmd">Propose x</span><span>from the worker</span><span class="cmd no">&#8220;done&#8221;</span><span>is text; no request carries it</span></div>
         <div class="h"><b>harness v1</b>The worker passes its own checks and says &#8220;done&#8221;.</div>
       </div>
       <div class="beat" role="listitem">
-        <div class="k"><span class="num">3 &middot; judge</span><span class="badge">outstanding</span><p><code>x</code> is defeated. The counterexample is kept.</p></div>
+        <div class="k"><span class="step"><i>3</i>judge</span><span class="badge">outstanding</span><p><code>x</code> is defeated. The counterexample is kept.</p></div>
         <div class="c"><span class="cmd d">Defeat x</span><span>from the verifier</span></div>
         <div class="h verifier"><b>verifier</b>A separate role examines the frozen copy and finds a counterexample.</div>
       </div>
       <div class="beat" role="listitem">
-        <div class="k"><span class="num">4 &middot; stop or replace</span><span class="badge">outstanding</span><p>Unchanged: the same requirements, the same record.</p></div>
+        <div class="k"><span class="step"><i>4</i>stop or replace</span><span class="badge">outstanding</span><p>Unchanged: the same requirements, the same record.</p></div>
         <div class="c none"><span>no request: resting, a crash, an exhausted budget or a replacement writes nothing</span></div>
         <div class="h stop"><b>v1 &rarr; v2</b>The harness stops or is replaced. Version 2 reads the same Contract.</div>
       </div>
       <div class="beat" role="listitem">
-        <div class="k"><span class="num">5 &middot; submit again</span><span class="badge">outstanding</span><p><code>y</code> has Support: a judgment of this exact artifact.</p></div>
+        <div class="k"><span class="step"><i>5</i>submit again</span><span class="badge">outstanding</span><p><code>y</code> has Support: a judgment of this exact artifact.</p></div>
         <div class="c"><span class="cmd">Propose y</span><span>from the worker</span><span class="cmd v">Support y</span><span>from the verifier</span></div>
         <div class="h"><b>harness v2</b>The worker submits <code>y</code>. The verifier gives evidence for each requirement.</div>
       </div>
       <div class="beat" role="listitem">
-        <div class="k"><span class="num">6 &middot; settle</span><span class="badge done">fulfilled</span><p>Closed on the current Support. A later counterexample reopens it.</p></div>
+        <div class="k"><span class="step"><i>6</i>settle</span><span class="badge done">fulfilled</span><p>Closed on the current Support. A later counterexample reopens it.</p></div>
         <div class="c"><span class="cmd">Discharge</span><span>from the user, or a rule the user fixed</span></div>
         <div class="h"><b>harness v2</b>Neither the worker nor the verifier has a request that closes a task.</div>
       </div>
     </div>
 
-    <div class="walk-read">
+    <div class="three-up">
       <div><h3>The task stays open</h3><p>The worker's &#8220;done&#8221; is a submission, not a completion. Its own checks guide the work; they never record progress.</p></div>
       <div><h3>The task is out of reach</h3><p>Progress enters only when an independent verifier judges an exact artifact and the kernel finds that judgment authorized and current. The worker cannot edit what is owed.</p></div>
       <div><h3>The task holds across versions</h3><p>What is owed and what was accepted are the same under every version of the harness, including versions the agent writes.</p></div>
@@ -224,20 +162,11 @@
   </div>
 </section>
 
-<!-- 3. Real runs -->
-<section class="section" id="runs">
-  <div class="wrap">
-    <p class="kicker">Trajectories</p>
+<section class="sec band" id="runs">
+  <div class="col">
     <h2>The same task under Codex and under ProContract</h2>
-    <p class="lead">Three tasks from the 200-task comparison below, chosen because the verifier's findings are short enough to read: the same model, GPT-6 Luna, and the same six hours. Every marker is an event recorded in the run, and the words are the agents' and the verifier's own. Hidden tests are run after a run ends; no agent sees them.</p>
+    <p class="intro">Three tasks from the 200-task comparison below, chosen because the verifier's findings are short enough to read: the same model, GPT-6 Luna, and the same six hours. Every marker is an event recorded in the run, and the words are the agents' and the verifier's own. Hidden tests are run after a run ends; no agent sees them.</p>
     <div class="runs" id="run-tiles"></div>
-    <div class="legend" aria-label="Markers">
-      <span><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M7 2L12.5 12H1.5z" fill="#3949A3"/></svg>worker ends its turn: the artifact is frozen</span>
-      <span><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 2.5l9 9M11.5 2.5l-9 9" stroke="#B54732" stroke-width="2.2" fill="none"/></svg>verifier's counterexample</span>
-      <span><svg viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="#fff" stroke="#5C6670" stroke-width="1.5"/></svg>verifier cannot decide: nothing recorded</span>
-      <span><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M7 2v10" stroke="#64748B" stroke-width="2"/></svg>work handed to a fresh worker</span>
-    </div>
-    <noscript><p class="note" style="margin-top:16px">The trajectory viewer needs JavaScript. The paper's Appendix C.7 follows five tasks under Codex and under ProContract.</p></noscript>
   </div>
 </section>
 
@@ -260,18 +189,16 @@
   </div>
 </dialog>
 
-<!-- 4. What the kernel preserves -->
-<section class="section plain" id="kernel">
-  <div class="wrap">
-    <p class="kicker">The kernel</p>
+<section class="sec" id="kernel">
+  <div class="col">
     <h2>What the kernel preserves</h2>
-    <p class="lead">The kernel runs no model, knows nothing of programs or benchmarks, and makes no judgment of its own. It receives requests, checks who sent each and what it names, and either applies it or leaves the Contract as it was. Its <a href="https://github.com/Lemutisme/ProContract/blob/main/codex-rs/pro-contract/src/transition.rs">transition function</a> is 271 lines of Rust.</p>
+    <p class="intro">The kernel runs no model, knows nothing of programs or benchmarks, and makes no judgment of its own. It receives requests, checks who sent each and what it names, and either applies it or leaves the Contract as it was. Its <a href="https://github.com/Lemutisme/ProContract/blob/main/codex-rs/pro-contract/src/transition.rs">transition function</a> is 271 lines of Rust.</p>
 
     <div class="principles">
       <div class="principle">
         <svg viewBox="0 0 320 150" role="img" aria-label="The user writes requirements, the worker submits candidates, the verifier writes judgments; the worker's requests to requirements and judgments are rejected.">
           <rect x="196" y="6" width="118" height="138" rx="8" class="f-kern" stroke-width="1.2"/>
-          <text x="206" y="22" class="t-mono t-kern" font-size="10.5" letter-spacing=".8">CONTRACT</text>
+          <text x="206" y="22" class="t-kern" font-size="10.5" font-weight="600" letter-spacing=".8">CONTRACT</text>
           <g font-size="12.5" text-anchor="middle">
             <rect x="6" y="32" width="74" height="24" rx="12" class="f-white"/><text x="43" y="48.5">user</text>
             <rect x="6" y="74" width="74" height="24" rx="12" class="f-white"/><text x="43" y="90.5">worker</text>
@@ -294,7 +221,6 @@
         <h3>One role for each request</h3>
         <p>The user states what is owed, the worker submits, the verifier judges. A worker that sends a judgment or a settlement is rejected, and the Contract is unchanged.</p>
       </div>
-
       <div class="principle">
         <svg viewBox="0 0 320 150" role="img" aria-label="Support is attached to candidate x exactly; the edited candidate x-prime has no judgment.">
           <rect x="14" y="18" width="40" height="40" rx="5" class="f-cand" stroke-width="1.5"/><text x="34" y="44" text-anchor="middle" class="t-mono" font-size="16">x</text>
@@ -310,63 +236,59 @@
         <h3>A judgment names exact work</h3>
         <p>Support binds the Contract, its requirements and one frozen artifact by hash. Change the artifact, or the requirements, and the judgment no longer applies.</p>
       </div>
-
       <div class="principle">
         <svg viewBox="0 0 320 150" role="img" aria-label="Support from the verifier, then a separate Discharge from the user, then the Contract is fulfilled.">
           <circle cx="36" cy="56" r="16" class="f-kern" stroke-width="1.5"/><path d="M28 56l6 6 10-11" class="l-kern" stroke-width="2.2"/>
           <text x="36" y="94" text-anchor="middle" font-size="13" font-weight="600">Support</text><text x="36" y="110" text-anchor="middle" font-size="12" class="t-mute">verifier</text>
           <line x1="58" y1="56" x2="116" y2="56" class="l-ink" stroke-width="1.4" marker-end="url(#ah)"/>
-          <rect x="120" y="40" width="88" height="32" rx="4" fill="#18222D"/><text x="164" y="61" text-anchor="middle" class="t-mono" font-size="12.5" style="fill:#fff">Discharge</text>
+          <rect x="120.6" y="40.6" width="87" height="31" rx="6" fill="#fff" stroke="#1f2328" stroke-width="1.25"/><text x="164" y="61" text-anchor="middle" class="t-mono" font-size="12.5" font-weight="500">Discharge</text>
           <text x="164" y="94" text-anchor="middle" font-size="13" font-weight="600">settlement</text><text x="164" y="110" text-anchor="middle" font-size="12" class="t-mute">the user, or the user's rule</text>
           <line x1="212" y1="56" x2="238" y2="56" class="l-ink" stroke-width="1.4" marker-end="url(#ah)"/>
-          <rect x="242" y="43" width="72" height="26" rx="13" fill="#0F766E"/><text x="278" y="60.5" text-anchor="middle" class="t-mono" font-size="12" style="fill:#fff">fulfilled</text>
+          <rect x="242" y="43" width="72" height="26" rx="13" fill="#0b6e62"/><text x="278" y="60.5" text-anchor="middle" font-size="12.5" font-weight="500" style="fill:#fff">fulfilled</text>
           <text x="278" y="94" text-anchor="middle" font-size="13" font-weight="600">closed</text>
         </svg>
         <h3>Support is not settlement</h3>
         <p>Support is one verifier's judgment of one artifact. Closing the task is a separate request, and on evidence the worker could have read, only the user's explicit act settles it.</p>
       </div>
-
       <div class="principle">
         <svg viewBox="0 0 320 150" role="img" aria-label="Candidates x and y are defeated one after the other; the Contract stays outstanding and candidate z is submitted.">
           <rect x="6" y="8" width="308" height="40" rx="8" class="f-kern" stroke-width="1.2"/>
           <text x="18" y="33" font-size="13.5" font-weight="600">Contract</text>
-          <rect x="212" y="16" width="92" height="24" rx="12" class="f-open"/><text x="258" y="32.5" text-anchor="middle" class="t-mono t-open" font-size="12">outstanding</text>
+          <rect x="212" y="16" width="92" height="24" rx="12" class="f-open"/><text x="258" y="32.5" text-anchor="middle" class="t-open" font-size="12.5" font-weight="500">outstanding</text>
           <g class="l-mute" stroke-width="1.3"><line x1="48" y1="84" x2="48" y2="48"/><line x1="160" y1="84" x2="160" y2="48"/><line x1="272" y1="84" x2="272" y2="48"/></g>
           <g class="f-cand" stroke-width="1.5"><rect x="30" y="84" width="36" height="36" rx="5"/><rect x="142" y="84" width="36" height="36" rx="5"/><rect x="254" y="84" width="36" height="36" rx="5"/></g>
           <g class="t-mono" font-size="15" text-anchor="middle"><text x="48" y="107">x</text><text x="160" y="107">y</text><text x="272" y="107">z</text></g>
-          <g><circle cx="68" cy="84" r="9.5" fill="#FBEDE9" stroke="#B54732"/><circle cx="180" cy="84" r="9.5" fill="#FBEDE9" stroke="#B54732"/><path d="M64 80l8 8M72 80l-8 8M176 80l8 8M184 80l-8 8" class="l-def" stroke-width="1.8"/></g>
+          <g><circle cx="68" cy="84" r="9.5" fill="#FBEDE9" stroke="#bf4b30"/><circle cx="180" cy="84" r="9.5" fill="#FBEDE9" stroke="#bf4b30"/><path d="M64 80l8 8M72 80l-8 8M176 80l8 8M184 80l-8 8" class="l-def" stroke-width="1.8"/></g>
           <g class="l-ink" stroke-width="1.3"><line x1="86" y1="104" x2="136" y2="104" marker-end="url(#ah)"/><line x1="198" y1="104" x2="248" y2="104" marker-end="url(#ah)"/></g>
-          <g class="t-mono t-mute" font-size="11" text-anchor="middle"><text x="48" y="138">generation 1</text><text x="160" y="138">generation 3</text><text x="272" y="138">generation 5</text></g>
+          <g class="t-mute" font-size="11.5" text-anchor="middle"><text x="48" y="138">generation 1</text><text x="160" y="138">generation 3</text><text x="272" y="138">generation 5</text></g>
         </svg>
         <h3>A counterexample returns the task to work</h3>
         <p>A Defeat removes the candidate and leaves the Contract outstanding. The generation rises with every submission and every Defeat, so an old judgment cannot land on a later artifact.</p>
       </div>
-
       <div class="principle">
         <svg viewBox="0 0 320 150" role="img" aria-label="Harness version 1 is removed and version 2 reads the same Contract with the same recorded judgments.">
           <rect x="6" y="8" width="308" height="40" rx="8" class="f-kern" stroke-width="1.2"/>
           <text x="18" y="33" font-size="13.5" font-weight="600">Contract</text>
           <g class="t-mono t-def" font-size="11.5" text-anchor="middle"><rect x="92" y="18" width="38" height="20" rx="4" fill="#fff" stroke="#E7B9AE"/><text x="111" y="32">x &#x2715;</text><rect x="136" y="18" width="38" height="20" rx="4" fill="#fff" stroke="#E7B9AE"/><text x="155" y="32">y &#x2715;</text></g>
-          <rect x="212" y="16" width="92" height="24" rx="12" class="f-open"/><text x="258" y="32.5" text-anchor="middle" class="t-mono t-open" font-size="12">outstanding</text>
+          <rect x="212" y="16" width="92" height="24" rx="12" class="f-open"/><text x="258" y="32.5" text-anchor="middle" class="t-open" font-size="12.5" font-weight="500">outstanding</text>
           <line x1="6" y1="66" x2="314" y2="66" class="l-mute" stroke-width="1.2" stroke-dasharray="4 4"/>
           <rect x="6" y="86" width="118" height="52" rx="6" class="f-harn" stroke-width="1.3" stroke-dasharray="5 4" opacity=".6"/>
-          <text x="18" y="108" class="t-mono t-harn" font-size="12" opacity=".7">harness v1</text><text x="18" y="126" font-size="12" class="t-mute">removed</text>
+          <text x="18" y="108" class="t-harn" font-size="12.5" font-weight="600" opacity=".7">harness v1</text><text x="18" y="126" font-size="12" class="t-mute">removed</text>
           <line x1="130" y1="112" x2="158" y2="112" class="l-ink" stroke-width="1.3" marker-end="url(#ah)"/>
           <rect x="164" y="86" width="150" height="52" rx="6" class="f-harn" stroke-width="1.3"/>
-          <text x="176" y="108" class="t-mono t-harn" font-size="12">harness v2</text><text x="176" y="126" font-size="12">reads the same Contract</text>
+          <text x="176" y="108" class="t-harn" font-size="12.5" font-weight="600">harness v2</text><text x="176" y="126" font-size="12">reads the same Contract</text>
           <line x1="258" y1="50" x2="258" y2="83" class="l-ink" stroke-width="1.3" marker-end="url(#ah)"/>
         </svg>
         <h3>Replacing the harness changes nothing owed</h3>
         <p>Requirements and recorded judgments stay in place when the harness is restarted, replaced, or rewritten by the agent. A replacement can break only the harness's own execution state.</p>
       </div>
-
       <div class="principle">
         <svg viewBox="0 0 320 150" role="img" aria-label="A counterexample after settlement moves the Contract from fulfilled back to outstanding.">
           <text x="155" y="30" text-anchor="middle" font-size="13" font-weight="600" class="t-def">counterexample, or a judgment withdrawn</text>
-          <rect x="8" y="48" width="80" height="28" rx="14" fill="#0F766E"/><text x="48" y="66.5" text-anchor="middle" class="t-mono" font-size="12" style="fill:#fff">fulfilled</text>
+          <rect x="8" y="48" width="80" height="28" rx="14" fill="#0b6e62"/><text x="48" y="66.5" text-anchor="middle" font-size="12.5" font-weight="500" style="fill:#fff">fulfilled</text>
           <line x1="92" y1="62" x2="210" y2="62" class="l-def" stroke-width="1.5" marker-end="url(#ah-d)"/>
-          <circle cx="151" cy="62" r="11" fill="#FBEDE9" stroke="#B54732"/><path d="M146.5 57.5l9 9M155.5 57.5l-9 9" class="l-def" stroke-width="1.9"/>
-          <rect x="214" y="48" width="98" height="28" rx="14" class="f-open"/><text x="263" y="66.5" text-anchor="middle" class="t-mono t-open" font-size="12">outstanding</text>
+          <circle cx="151" cy="62" r="11" fill="#FBEDE9" stroke="#bf4b30"/><path d="M146.5 57.5l9 9M155.5 57.5l-9 9" class="l-def" stroke-width="1.9"/>
+          <rect x="214" y="48" width="98" height="28" rx="14" class="f-open"/><text x="263" y="66.5" text-anchor="middle" class="t-open" font-size="12.5" font-weight="500">outstanding</text>
           <text x="151" y="104" text-anchor="middle" class="t-mono t-mute" font-size="11.5">Challenge &#183; Withdraw</text>
           <text x="151" y="124" text-anchor="middle" font-size="12.5" class="t-mute">the acceptance has lost its basis</text>
         </svg>
@@ -396,26 +318,19 @@
   </div>
 </section>
 
-<!-- 5. Results -->
-<section class="section" id="results">
-  <div class="wrap">
-    <p class="kicker">Measured results</p>
+<section class="sec band" id="results">
+  <div class="col">
     <h2>Higher with every model, and first on ProgramBench</h2>
-    <p class="lead">Built on Codex and compared with baselines that run the same model under the same six hours.</p>
+    <p class="intro">Built on Codex and compared with baselines that run the same model under the same six hours. With one executable and one model, GPT-6 Luna, switching ProContract on raises the mean hidden-test pass rate from 71.22% to 76.28%: 5.07 points, 95% interval [3.70, 6.54], higher on 154 of 200 tasks.</p>
 
-    <div class="headline">
-      <div class="big">
-        <b>+5.07<small> points</small></b>
-        <p><strong>Controlled comparison.</strong> One executable and one model, GPT-6 Luna, with ProContract switched on and off: mean hidden-test pass rate 76.28% against 71.22% for Codex <code>/goal</code>, 95% interval [3.70, 6.54], higher on 154 of 200 tasks.</p>
-      </div>
-      <div class="board">
-        <div><b>89.70%</b><span>mean pass rate with GPT-6.1 Sol: state of the art in mean pass rate on ProgramBench, 1.91 points above the best of the 66 public entries</span></div>
-        <div><b>62%</b><span>of the best public entry's cost per task</span></div>
-        <div><b>65.9%</b><span>on Terminal-Bench 2.0 with GPT-5.2; public harnesses of the same model pass 54.0% to 64.9%</span></div>
-      </div>
+    <div class="nums">
+      <div class="num pc"><b>+5.07<small>points</small></b><span>above Codex <code>/goal</code> on the same model and executable</span></div>
+      <div class="num"><b>89.70<small>%</small></b><span>mean pass rate with GPT-6.1 Sol: state of the art in mean pass rate on ProgramBench</span></div>
+      <div class="num"><b>62<small>%</small></b><span>of the best public entry's cost per task</span></div>
+      <div class="num"><b>65.9<small>%</small></b><span>on Terminal-Bench 2.0 with GPT-5.2; public harnesses of the same model pass 54.0% to 64.9%</span></div>
     </div>
 
-    <div class="table-wrap">
+    <div class="table-wrap" style="max-width:940px">
       <table class="results">
         <caption>ProgramBench, mean hidden-test pass rate over 200 paired tasks</caption>
         <thead><tr><th>Model</th><th>Baseline</th><th class="num">Baseline (%)</th><th class="num">ProContract (%)</th><th class="num">Gain [95% interval]</th></tr></thead>
@@ -431,73 +346,63 @@
       </table>
     </div>
 
-    <figure class="plate">
-      <h3>Public leaderboards: mean pass rate against cost</h3>
+    <figure class="fig">
       <a class="img" href="./static/images/programbench_completed_pareto.png"><img src="./static/images/programbench_completed_pareto.png" alt="Public leaderboards: ProgramBench mean pass rate and cost, the same model family, and Terminal-Bench 2.0" loading="lazy" width="2200" height="816"></a>
-      <figcaption>ProContract with GPT-6.1 Sol against the public ProgramBench entries, and Terminal-Bench 2.0. <a href="./static/images/programbench_completed_pareto.png">Open full figure</a></figcaption>
+      <figcaption>ProContract with GPT-6.1 Sol is 1.91 points above the best of the 66 public ProgramBench entries.</figcaption>
     </figure>
 
-    <div class="sub">
-      <h3>Where the gain comes from</h3>
-      <p class="lead">The gain comes from keeping the task open, not from feedback. Refusing the worker's &#8220;done&#8221; with one fixed sentence scores higher than plain <code>/goal</code> on 26 of 30 tasks, but that loop cannot hold the task: no run can close, and the worker rewrites its goal. Under ProContract no run changes its task, and a run can end on a judgment other than the worker's.</p>
-      <figure class="plate">
-        <a class="img" href="./static/images/performance_paired.png"><img src="./static/images/performance_paired.png" alt="Share of runs still working, per-task gain, the refused loop, and quality against integrity" loading="lazy" width="2200" height="1016"></a>
-        <figcaption>ProContract switched on and off: off, the worker declares the task done within two hours. <a href="./static/images/performance_paired.png">Open full figure</a></figcaption>
-      </figure>
-    </div>
+    <p class="intro" style="margin-top:64px"><strong>Where the gain comes from.</strong> The gain comes from keeping the task open, not from feedback. Refusing the worker's &#8220;done&#8221; with one fixed sentence scores higher than plain <code>/goal</code> on 26 of 30 tasks, but that loop cannot hold the task: no run can close, and the worker rewrites its goal. Under ProContract no run changes its task, and a run can end on a judgment other than the worker's.</p>
+    <figure class="fig" style="margin-top:36px">
+      <a class="img" href="./static/images/performance_paired.png"><img src="./static/images/performance_paired.png" alt="Share of runs still working, per-task gain, the refused loop, and quality against integrity" loading="lazy" width="2200" height="1016"></a>
+      <figcaption>ProContract switched on and off: off, the worker declares the task done within two hours.</figcaption>
+    </figure>
   </div>
 </section>
 
-<!-- 6. Evolvable harness -->
-<section class="section plain" id="evolve">
-  <div class="wrap">
-    <p class="kicker">Self-improvement</p>
+<section class="sec" id="evolve">
+  <div class="col">
     <h2>The harness becomes evolvable</h2>
-    <p class="lead">Because the kernel's guarantee holds for any harness, every part of the harness is free to change. Improving it is one more responsibility for the same kernel to hold: a revision is a candidate under its own Contract, and the harness under improvement never judges itself.</p>
+    <p class="intro">Because the kernel's guarantee holds for any harness, every part of the harness is free to change. Improving it is one more responsibility for the same kernel to hold: a revision is a candidate under its own Contract, and the harness under improvement never judges itself.</p>
 
     <ol class="flow" aria-label="One step of self-improvement">
       <li><b>A run exposes a defect</b>A run that stops with its task open shows where the harness has to change.</li>
       <li class="k"><b>Terms come first</b>What a revision must show is bound into a Contract before any candidate exists.</li>
       <li><b>An agent writes a revision</b>The source of a new version, submitted as a frozen artifact.</li>
       <li class="k"><b>It is judged like any artifact</b>By controls on the failing inputs that separate the old version from the new, not by benchmark scores.</li>
-      <li class="k"><b>Adoption is a separate act</b>An authority outside the agent, the user or a rule the user fixed, makes it the version that serves later tasks. Later runs expose the next defect.</li>
+      <li class="k"><b>Adoption is a separate act</b>An authority outside the agent, the user or a rule the user fixed, makes it the version that serves later tasks.</li>
     </ol>
-    <p class="flow-note">Shaded steps are recorded by the kernel. If an evaluation loses its basis, the adoption is reopened like any other acceptance.</p>
+    <p class="caption">Tinted steps are recorded by the kernel. Later runs expose the next defect, and if an evaluation loses its basis the adoption is reopened like any other acceptance.</p>
 
     <div class="rounds">
-      <figure style="margin:0">
-        <div class="stop-chart" role="img" aria-label="First attempts that stop early at a defect of the harness: 40 percent before revision, 18 percent after one round, 4 percent after two rounds.">
-          <div class="stop-row"><span class="nm short">before</span><span class="track tall"><i class="d" style="width:40%"></i><em style="left:calc(40% + 8px)">40%</em></span></div>
-          <div class="stop-row"><span class="nm short">round 1</span><span class="track tall"><i class="d" style="width:18%"></i><em style="left:calc(18% + 8px)">18%</em></span></div>
-          <div class="stop-row"><span class="nm short">round 2</span><span class="track tall"><i class="d" style="width:4%"></i><em style="left:calc(4% + 8px)">4%</em></span></div>
+      <figure>
+        <div class="bars" role="img" aria-label="First attempts that stop early at a defect of the harness: 40 percent before revision, 18 percent after one round, 4 percent after two rounds.">
+          <div class="bar-row short"><span class="nm">before</span><span class="track tall"><i class="d" style="width:40%"></i><em style="left:calc(40% + 9px)">40%</em></span></div>
+          <div class="bar-row short"><span class="nm">round 1</span><span class="track tall"><i class="d" style="width:18%"></i><em style="left:calc(18% + 9px)">18%</em></span></div>
+          <div class="bar-row short"><span class="nm">round 2</span><span class="track tall"><i class="d" style="width:4%"></i><em style="left:calc(4% + 9px)">4%</em></span></div>
         </div>
-        <figcaption>First attempts that stop early at a defect of the harness, over two rounds of revision.</figcaption>
+        <figcaption>First attempts that stop early at a defect of the harness.</figcaption>
       </figure>
-      <div class="board">
-        <div><b>23</b><span>released revisions, 18 of them answering a failure observed in a run</span></div>
-        <div><b>0</b><span>changes to what is owed or what was accepted when the harness is replaced under a running task</span></div>
+      <div class="nums">
+        <div class="num"><b>23</b><span>released revisions, 18 of them answering a failure observed in a run</span></div>
+        <div class="num"><b>0</b><span>changes to what is owed or what was accepted when the harness is replaced under a running task</span></div>
       </div>
     </div>
 
-    <figure class="plate">
-      <h3>Self-improvement changes where runs end</h3>
+    <figure class="fig">
       <a class="img" href="./static/images/rsi_process.png"><img src="./static/images/rsi_process.png" alt="Released revisions by part of the harness and round; how runs end in each evaluation" loading="lazy" width="2200" height="696"></a>
-      <figcaption>Released revisions by part of the harness, and how runs end in each evaluation. <a href="./static/images/rsi_process.png">Open full figure</a></figcaption>
+      <figcaption>Self-improvement changes where runs end: released revisions by part of the harness, and how runs end in each evaluation.</figcaption>
     </figure>
-    <figure class="plate small">
-      <h3>What may change</h3>
+    <figure class="fig narrow">
       <a class="img" href="./static/images/harness_taxonomy.png"><img src="./static/images/harness_taxonomy.png" alt="The six parts of a harness and which of them were revised" loading="lazy" width="2226" height="846"></a>
-      <figcaption>Every part of the harness is free to change; the Contract is not the harness's to write. <a href="./static/images/harness_taxonomy.png">Open full figure</a></figcaption>
+      <figcaption>Every part of the harness is free to change; the Contract is not the harness's to write.</figcaption>
     </figure>
   </div>
 </section>
 
-<!-- 7. Run it, paper, citation -->
-<section class="section" id="resources">
-  <div class="wrap">
-    <p class="kicker">Run it</p>
+<section class="sec band" id="run">
+  <div class="col">
     <h2>The kernel on your machine, in a few seconds</h2>
-    <p class="lead">The <a href="https://github.com/Lemutisme/ProContract/blob/main/docs/PROCONTRACT_QUICKSTART.md">quickstart</a> builds one binary and runs one task under the kernel: no model, no container and, after the build, no network. This is part of what it prints.</p>
+    <p class="intro">The <a href="https://github.com/Lemutisme/ProContract/blob/main/docs/PROCONTRACT_QUICKSTART.md">quickstart</a> builds one binary and runs one task under the kernel: no model, no container and, after the build, no network. This is part of what it prints.</p>
 <pre class="term" tabindex="0"><span class="c">$ (cd codex-rs &amp;&amp; cargo build --locked -p codex-pro-contract-store --bin pro-contract-store)
 $ export PRO_CONTRACT_STORE_BIN="$PWD/codex-rs/target/debug/pro-contract-store"
 $ cd scripts &amp;&amp; python3 examples/procontract_quickstart.py</span>
@@ -518,36 +423,26 @@ $ cd scripts &amp;&amp; python3 examples/procontract_quickstart.py</span>
   6. the verifier checks the frozen candidate and records Support
      checks passed: 4 of 4
      standing=<span class="ok">outstanding</span> version=5 generation=3 candidate=3cc22711b1 support=reach within</pre>
+    <nav class="links" aria-label="Paper and code">
+      <a href="./static/files/procontract.pdf">Paper (PDF)</a>
+      <a href="https://github.com/Lemutisme/ProContract">Code</a>
+      <a href="https://github.com/Lemutisme/ProContract/blob/main/docs/PROCONTRACT_REPRODUCE.md">Reproduction guide</a>
+      <a href="https://github.com/Lemutisme/ProContract/blob/main/docs/PROCONTRACT_LAYERS.md">Kernel and harness layers</a>
+    </nav>
+  </div>
+</section>
 
-    <div class="res">
-      <div>
-        <h3>Paper and code</h3>
-        <ul class="linklist">
-          <li><a href="./static/files/procontract.pdf">Paper (PDF)</a><span>with appendices</span></li>
-          <li><a href="https://github.com/Lemutisme/ProContract">Code</a><span>kernel, store, native harness, launcher</span></li>
-          <li><a href="https://github.com/Lemutisme/ProContract/blob/main/docs/PROCONTRACT_REPRODUCE.md">Reproduction guide</a><span>ProgramBench runs and grading</span></li>
-          <li><a href="https://github.com/Lemutisme/ProContract/blob/main/docs/PROCONTRACT_LAYERS.md">Kernel and harness layers</a><span>what belongs where</span></li>
-        </ul>
-        <details class="abstract">
-          <summary>Abstract</summary>
-          <div>
-            <p>Two problems now limit long-horizon AI agents: they stop early and leave solvable work undone, and their harnesses cannot be changed safely, by developers or by the agents themselves. Both have one cause: the harness that works on a task also holds what is owed and decides when it is done. An agent's &ldquo;done&rdquo; therefore measures its method, not the task. Given six hours to rebuild a program, Codex, in its mode built for long tasks, declares 197 of 200 tasks complete after a median of 36 minutes, and one program passes every hidden test. The decision fails in two ways: in <em>progress misjudgment</em> the agent takes a passing check of its own for completion, and in <em>responsibility dilution</em> it narrows the task to what its method covers; 62 of the 197 completion messages name a gap and declare the task complete. The model is not the limit: one model stops after a median of 24, 36, or 90 minutes under three harnesses, and when its &ldquo;done&rdquo; is refused the same agent keeps finding and fixing failures for five more hours. But nothing then protects the task, and it begins to rewrite its goal into a narrower one; and when agents rewrite their own harness, each rewrite can change what is owed.</p>
-            <p>ProContract takes the task out of the harness. A small deterministic kernel holds each task's Contract and records progress only when an independent verifier accepts the exact work submitted; what is owed and what was accepted are the same under every version of the harness, including versions the agent writes. The harness thereby becomes <em>evolvable</em>: a run that stops with its task open exposes a defect of the harness, and revisions are decided by controls on the failing inputs, not by benchmark scores; over two rounds the share of runs that stop early at such a defect falls from 40% to 4%. Built on Codex, ProContract scores 5.07 points above Codex on the same model and executable, and with GPT-6.1 Sol it sets the state of the art in mean pass rate on ProgramBench, 89.70%, at 62% of the best public entry's cost.</p>
-          </div>
-        </details>
-      </div>
-      <div>
-        <h3>Citation</h3>
-        <div class="cite">
-          <button type="button" id="copy-bib">Copy</button>
+<section class="sec" id="citation">
+  <div class="col">
+    <h2>Citation</h2>
+    <div class="cite">
+      <button type="button" id="copy-bib">Copy</button>
 <pre id="bib">@article{zhou2026procontract,
   title   = {ProContract: Decoupling Responsibility and Progress from an Evolvable Harness},
   author  = {Zhou, Duo and Qiu, Ruizhong and Zhang, Yuji and Jin, Kaifeng and Tong, Hanghang and Zhang, Eddie and Bai, Jerry},
   year    = {2026},
   note    = {Preprint}
 }</pre>
-        </div>
-      </div>
     </div>
   </div>
 </section>
@@ -555,8 +450,8 @@ $ cd scripts &amp;&amp; python3 examples/procontract_quickstart.py</span>
 </main>
 
 <footer class="footer">
-  <div class="wrap">
-    <p>Correspondence: <a class="mail" href="mailto:duozhou2@illinois.edu">duozhou2@illinois.edu</a>, <a class="mail" href="mailto:jerry@isara.io">jerry@isara.io</a></p>
+  <div class="col">
+    <p>Correspondence: <a href="mailto:duozhou2@illinois.edu">duozhou2@illinois.edu</a>, <a href="mailto:jerry@isara.io">jerry@isara.io</a></p>
     <p>Logos are the marks of their institutions.</p>
   </div>
 </footer>
