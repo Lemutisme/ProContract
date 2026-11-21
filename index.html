@@ -63,63 +63,157 @@
 
 <main>
 
-<section class="sec" id="abstract">
+<!-- the argument in three lines -->
+<section class="spine-sec" aria-label="The argument in three lines">
   <div class="col">
-    <h2>Abstract</h2>
-    <div class="txt abstract" style="margin-top:28px">
-      <p>Two problems now limit long-horizon AI agents: they stop early and leave solvable work undone, and their harnesses cannot be changed safely, by developers or by the agents themselves. Both have one cause: the harness that works on a task also holds what is owed and decides when it is done. An agent's &ldquo;done&rdquo; therefore measures its method, not the task. Given six hours to rebuild a program, Codex, in its mode built for long tasks, declares 197 of 200 tasks complete after a median of 36 minutes, and one program passes every hidden test. The decision fails in two ways: in <em>progress misjudgment</em> the agent takes a passing check of its own for completion, and in <em>responsibility dilution</em> it narrows the task to what its method covers; 62 of the 197 completion messages name a gap and declare the task complete. The model is not the limit: one model stops after a median of 24, 36, or 90 minutes under three harnesses, and when its &ldquo;done&rdquo; is refused the same agent keeps finding and fixing failures for five more hours. But nothing then protects the task, and it begins to rewrite its goal into a narrower one; and when agents rewrite their own harness, each rewrite can change what is owed.</p>
-      <p>ProContract takes the task out of the harness. A small deterministic kernel holds each task's Contract and records progress only when an independent verifier accepts the exact work submitted; what is owed and what was accepted are the same under every version of the harness, including versions the agent writes. The harness thereby becomes <em>evolvable</em>: a run that stops with its task open exposes a defect of the harness, and revisions are decided by controls on the failing inputs, not by benchmark scores; over two rounds the share of runs that stop early at such a defect falls from 40% to 4%. Built on Codex, ProContract scores 5.07 points above Codex on the same model and executable, and with GPT-6.1 Sol it sets the state of the art in mean pass rate on ProgramBench, 89.70%, at 62% of the best public entry's cost.</p>
-    </div>
+    <ol class="spine">
+      <li><span>Two problems</span>Long-horizon agents stop early, and their harnesses cannot be changed safely.</li>
+      <li><span>One cause</span>The harness that works on a task also holds what is owed and decides when it is done.</li>
+      <li><span>One move</span>ProContract takes the task out of the harness.</li>
+    </ol>
   </div>
 </section>
 
+<!-- 1. the problem -->
 <section class="sec band" id="problem">
   <div class="col">
-    <h2>An agent's &#8220;done&#8221; measures its method, not the task</h2>
-    <p class="intro">Given six hours to rebuild a program from an executable it can run but whose tests it never sees, Codex in its persistent <code>/goal</code> mode stops long before the allowance ends. The model is not the limit: the same model stops at a different time under each harness.</p>
+    <span class="label">The problem</span>
+    <h2>Agents stop early, and their harnesses cannot be changed safely</h2>
+    <p class="intro">Give an agent six hours to rebuild a program from an executable it can run but whose tests it never sees. Codex, in its mode built for long tasks, declares 197 of 200 tasks complete after a median of 36 minutes. One program passes every hidden test.</p>
 
-    <figure>
-      <div class="bars" role="img" aria-label="Median time before the agent stops, of six hours allowed: 24 minutes under mini-SWE-agent, 36 minutes under Codex /goal, 90 minutes under Recursive Language Models.">
+    <div class="nums">
+      <div class="num"><b>197<small>of 200</small></b><span>tasks declared complete</span></div>
+      <div class="num"><b>36<small>min</small></b><span>median time before &#8220;done&#8221;, of six hours allowed</span></div>
+      <div class="num"><b>164</b><span>runs have stopped on their own within the first hour</span></div>
+      <div class="num"><b>1</b><span>program passes every hidden test</span></div>
+    </div>
+
+    <p class="intro" style="margin-top:52px">The second problem is quieter. A harness has to keep changing: developers revise it as models make its assumptions stale, and agents now rewrite their own. But the harness is also where the task lives, so each new version decides again what is owed and what counts as done.</p>
+
+    <p class="question">Why does a capable agent stop with five hours left? And why is it unsafe to change the harness around it?</p>
+  </div>
+</section>
+
+<!-- 2. the analysis -->
+<section class="sec" id="analysis">
+  <div class="col">
+    <span class="label">The analysis</span>
+    <h2>Four observations, one cause</h2>
+    <p class="intro">Each observation rules out an easy answer and leaves a requirement behind.</p>
+
+    <ol class="obs">
+      <li>
+        <span class="n" aria-hidden="true">1</span>
+        <div>
+          <h3>The work was within reach</h3>
+          <p>Answer the agent's &#8220;done&#8221; with one fixed sentence, &#8220;Continue working on the same goal&#8221;, and change nothing else. The same agent then finds and fixes failures for a median of 5.3 more hours, and its program improves on 26 of 30 tasks. It says &#8220;done&#8221; again and again; after more than half of those declarations it changes the program once more.</p>
+          <p class="so"><span>So</span>the model could do the work, and the allowance was there. The task should have stayed open.</p>
+        </div>
+        <div class="ev">
+          <div class="nums inline three">
+            <div class="num"><b>+5.3<small>h</small></b><span>more of finding and fixing failures</span></div>
+            <div class="num"><b>26<small>of 30</small></b><span>tasks improve</span></div>
+            <div class="num"><b>429</b><span>times &#8220;done&#8221; is declared, in 32 runs</span></div>
+          </div>
+        </div>
+      </li>
+      <li>
+        <span class="n" aria-hidden="true">2</span>
+        <div>
+          <h3>The &#8220;done&#8221; is sincere. It measures the method.</h3>
+          <p>The agent has not forgotten the task. It stops as soon as it knows of no failure, and it is the agent that decides how hard to look. All 197 completion messages cite a successful rebuild; whether a message claims a comparison with the reference is uncorrelated with its score. In 62 of them the agent names a gap and marks the goal complete in the same message.</p>
+          <p class="so"><span>So</span>&#8220;done&#8221; reports what the agent's method found, not whether the task is met. It fails in two ways.</p>
+        </div>
+        <div class="ev">
+          <div class="mode-q">
+            <b>Progress misjudgment</b><span>a passing check of its own is taken for completion</span>
+            <blockquote class="said"><q>&#8220;&hellip;all 69 differential cases matched the reference.&#8221;</q><footer>chroma, Codex <code>/goal</code>, GPT-6 Luna &middot; <b>21.7% of hidden tests</b></footer></blockquote>
+          </div>
+          <div class="mode-q dilute">
+            <b>Responsibility dilution</b><span>the task is narrowed to what the method covers</span>
+            <blockquote class="said"><q>&#8220;This implements a broad subset of PHP, not the complete language.&#8221;</q><footer>php, Codex <code>/goal</code>, GPT-6 Luna &middot; <b>17.8% of hidden tests</b></footer></blockquote>
+          </div>
+        </div>
+      </li>
+      <li>
+        <span class="n" aria-hidden="true">3</span>
+        <div>
+          <h3>A loop recovers the work and cannot hold the task</h3>
+          <p>Refusing every &#8220;done&#8221; keeps the agent working, but the goal is still an object the agent can write. In 5 of 32 runs it wrote itself a new, narrower one: the task replaced by what its method can finish. And no run can close, because nobody but the worker can say that the task is met.</p>
+          <p class="so"><span>So</span>keeping the agent at work is not enough. The task has to live where the worker cannot rewrite it, and someone else has to be able to say that it is met.</p>
+        </div>
+        <div class="ev">
+          <div class="nums inline">
+            <div class="num"><b>5<small>of 32</small></b><span>runs rewrite their goal into a narrower one</span></div>
+            <div class="num"><b>0</b><span>runs can close their task</span></div>
+          </div>
+          <blockquote class="said plain"><q>&#8220;&hellip;resolving the remaining observed panic-output mismatch&#8221;</q><footer>a goal the agent wrote for itself after its &#8220;done&#8221; was refused</footer></blockquote>
+        </div>
+      </li>
+      <li>
+        <span class="n" aria-hidden="true">4</span>
+        <div>
+          <h3>Where it stops is set by the harness, and harnesses keep changing</h3>
+          <p>With the model held fixed, the stop moves with the harness: GPT-6 Luna stops after a median of 24 minutes under mini-SWE-agent, 36 under Codex <code>/goal</code> and 90 under Recursive Language Models. A stop is therefore evidence about the harness, and harnesses are rewritten for exactly that reason, by developers for each new model and increasingly by agents. But the task is part of what they rewrite.</p>
+          <p class="so"><span>So</span>a stop shows where the harness has to change. For that change to be safe, the task has to hold across every version of the harness.</p>
+        </div>
+        <div class="ev">
+          <div class="bars" role="img" aria-label="Median time before the agent stops, of six hours allowed: 24 minutes under mini-SWE-agent, 36 minutes under Codex /goal, 90 minutes under Recursive Language Models.">
         <div class="bar-row"><span class="nm">mini-SWE-agent</span><span class="track"><i style="width:6.67%"></i><em style="left:calc(6.67% + 9px)">24 min</em></span></div>
         <div class="bar-row"><span class="nm">Codex <code>/goal</code></span><span class="track"><i style="width:10%"></i><em style="left:calc(10% + 9px)">36 min</em></span></div>
         <div class="bar-row"><span class="nm">Recursive Language Models</span><span class="track"><i style="width:25%"></i><em style="left:calc(25% + 9px)">90 min</em></span></div>
         <div class="bar-row axis" aria-hidden="true"><span class="nm"></span><span class="ticks"><span>0</span><span>1 h</span><span>2 h</span><span>3 h</span><span>4 h</span><span>5 h</span><span>6 h</span></span></div>
       </div>
-      <figcaption>Median time before one model stops, under three harnesses, with six hours allowed.</figcaption>
-    </figure>
+          <p class="ev-cap">Median time before one model stops, six hours allowed.</p>
+        </div>
+      </li>
+    </ol>
 
-    <div class="nums">
-      <div class="num"><b>197<small>of 200</small></b><span>tasks declared complete by Codex <code>/goal</code></span></div>
-      <div class="num"><b>36<small>min</small></b><span>median time before &#8220;done&#8221;</span></div>
-      <div class="num"><b>1</b><span>program passes every hidden test</span></div>
-      <div class="num"><b>5.3<small>h</small></b><span>more of finding and fixing failures when &#8220;done&#8221; is refused</span></div>
+    <div class="diagnosis">
+      <span class="label">One cause</span>
+      <p class="claim">The harness that works on a task also holds what is owed and decides when it is done.</p>
+      <p class="rest">Better memory, a persistent goal or a longer allowance leave both in its hands. The task has to</p>
+      <ol class="needs">
+        <li><i>1</i>stay open after the worker says &#8220;done&#8221;</li>
+        <li><i>2</i>live where the worker cannot rewrite it</li>
+        <li><i>3</i>hold across every version of the harness</li>
+      </ol>
     </div>
-
-    <div class="modes">
-      <div class="mode">
-        <h3>Progress misjudgment</h3>
-        <p>The agent takes a passing check of its own for completion. All 197 completion messages cite a successful rebuild; whether a message claims a comparison with the reference is uncorrelated with its score.</p>
-        <blockquote class="said"><q>&#8220;&hellip;all 69 differential cases matched the reference.&#8221;</q><footer>chroma, Codex <code>/goal</code>, GPT-6 Luna &middot; <b>21.7% of hidden tests</b></footer></blockquote>
-      </div>
-      <div class="mode dilute">
-        <h3>Responsibility dilution</h3>
-        <p>The task shrinks to what the method covers. In 62 of the 197 messages the agent names a gap and marks the goal complete in the same message. Forced to continue, it rewrites its goal into a narrower one in 5 of 32 runs.</p>
-        <blockquote class="said"><q>&#8220;This implements a broad subset of PHP, not the complete language.&#8221;</q><footer>php, Codex <code>/goal</code>, GPT-6 Luna &middot; <b>17.8% of hidden tests</b></footer></blockquote>
-      </div>
-    </div>
-
-    <figure class="fig">
-      <a class="img" href="./static/images/analysis_stopping.png"><img src="./static/images/analysis_stopping.png" alt="Time before stopping under several harnesses; pass rates of the artifacts declared complete; quotes from completion messages" loading="lazy" width="2200" height="1040"></a>
-      <figcaption>Where agents stop, and what they say when they do. ProgramBench, 200 tasks, six hours each.</figcaption>
-    </figure>
   </div>
 </section>
 
-<section class="sec" id="walkthrough">
+<!-- 3. the solution -->
+<section class="sec band" id="walkthrough">
   <div class="col">
-    <h2>One task under ProContract</h2>
+    <span class="label">The solution</span>
+    <h2>ProContract takes the task out of the harness</h2>
     <p class="intro">A <strong>Contract</strong> holds the responsibility, what the agent owes, and its progress, what has been accepted as meeting it. Only a small deterministic <strong>kernel</strong> may update it, and only on a request from the role that request belongs to. Everything else is harness, and the harness can be replaced.</p>
 
+    <div class="ba">
+      <div class="ba-panel before">
+        <p class="ba-title">Today's agent</p>
+        <div class="ba-box"><b>Harness</b><ul><li>holds what is owed</li><li>does the work</li><li>decides when it is done</li></ul></div>
+        <p class="ba-foot">One writer for everything. It stops when its own checks pass, and changing it can change the task.</p>
+      </div>
+      <div class="ba-arrow" aria-hidden="true"><svg viewBox="0 0 40 24"><path d="M2 12h32M26 4l9 8-9 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="ba-panel after">
+        <p class="ba-title">ProContract</p>
+        <div class="ba-box k"><b>Kernel</b><ul><li>holds what is owed</li><li>records what was accepted</li></ul></div>
+        <div class="ba-row">
+          <div class="ba-box"><b>Harness</b><ul><li>does the work</li><li>can be replaced</li></ul></div>
+          <div class="ba-box v"><b>Verifier</b><ul><li>judges the exact work submitted</li></ul></div>
+        </div>
+        <p class="ba-foot">One writer per part. The harness reads the Contract and sends requests; it cannot write it.</p>
+      </div>
+    </div>
+
+    <div class="three-up answers">
+      <div><h3><i>1</i>The task stays open</h3><p>The worker's &#8220;done&#8221; is a submission, not a completion. Its own checks guide the work; they never record progress.</p></div>
+      <div><h3><i>2</i>The task is out of reach</h3><p>Progress enters only when an independent verifier judges an exact artifact and the kernel finds that judgment authorized and current. The worker cannot edit what is owed.</p></div>
+      <div><h3><i>3</i>The task holds across versions</h3><p>What is owed and what was accepted are the same under every version of the harness, including versions the agent writes.</p></div>
+    </div>
+
+    <h3 class="subhead">One task, step by step</h3>
     <div class="walk" role="list" aria-label="One task in six steps: the kernel's Contract above, the replaceable harness below">
       <span class="lane-label k">Kernel</span><span class="lane-label c">Request</span><span class="lane-label h">Harness</span>
       <div class="beat" role="listitem">
@@ -153,44 +247,12 @@
         <div class="h"><b>harness v2</b>Neither the worker nor the verifier has a request that closes a task.</div>
       </div>
     </div>
-
-    <div class="three-up">
-      <div><h3>The task stays open</h3><p>The worker's &#8220;done&#8221; is a submission, not a completion. Its own checks guide the work; they never record progress.</p></div>
-      <div><h3>The task is out of reach</h3><p>Progress enters only when an independent verifier judges an exact artifact and the kernel finds that judgment authorized and current. The worker cannot edit what is owed.</p></div>
-      <div><h3>The task holds across versions</h3><p>What is owed and what was accepted are the same under every version of the harness, including versions the agent writes.</p></div>
-    </div>
   </div>
 </section>
-
-<section class="sec band" id="runs">
-  <div class="col">
-    <h2>The same task under Codex and under ProContract</h2>
-    <p class="intro">Three tasks from the 200-task comparison below, chosen because the verifier's findings are short enough to read: the same model, GPT-6 Luna, and the same six hours. Every marker is an event recorded in the run, and the words are the agents' and the verifier's own. Hidden tests are run after a run ends; no agent sees them.</p>
-    <div class="runs" id="run-tiles"></div>
-  </div>
-</section>
-
-<dialog class="viewer" id="viewer" aria-labelledby="v-title">
-  <div class="v-head">
-    <div><h3 id="v-title"></h3><p id="v-sub"></p></div>
-    <button class="v-close" id="v-close" type="button">Close</button>
-  </div>
-  <div class="v-time" id="v-time"></div>
-  <div class="v-nav">
-    <button type="button" id="v-prev">&larr; Previous event</button>
-    <button type="button" id="v-next">Next event &rarr;</button>
-    <span>at <span class="at" id="v-at"></span></span>
-    <span class="sp"></span>
-    <button type="button" id="v-other">Next task &rarr;</button>
-  </div>
-  <div class="v-panes">
-    <div class="pane cx" id="v-cx"></div>
-    <div class="pane pc" id="v-pc"></div>
-  </div>
-</dialog>
 
 <section class="sec" id="kernel">
   <div class="col">
+    <span class="label">The solution, enforced</span>
     <h2>What the kernel preserves</h2>
     <p class="intro">The kernel runs no model, knows nothing of programs or benchmarks, and makes no judgment of its own. It receives requests, checks who sent each and what it names, and either applies it or leaves the Contract as it was. Its <a href="https://github.com/Lemutisme/ProContract/blob/main/codex-rs/pro-contract/src/transition.rs">transition function</a> is 271 lines of Rust.</p>
 
@@ -297,9 +359,11 @@
       </div>
     </div>
 
-    <div class="table-wrap">
-      <table class="commands">
-        <caption>Every request the kernel admits</caption>
+    <details class="more">
+      <summary>Every request the kernel admits</summary>
+      <div class="table-wrap">
+        <table class="commands">
+        
         <thead><tr><th>Request</th><th>Only from</th><th>The kernel checks</th><th>The Contract afterwards</th></tr></thead>
         <tbody>
           <tr><td><code>Issue</code></td><td>issuer (the user)</td><td>the Contract is new</td><td>outstanding; requirements bound by hash</td></tr>
@@ -314,12 +378,43 @@
           <tr class="silent"><td>anything else</td><td colspan="2">the worker's &#8220;done&#8221;, its own checks, resting, running out of budget, being replaced, editing files</td><td>nothing to record; unchanged</td></tr>
         </tbody>
       </table>
-    </div>
+      </div>
+    </details>
   </div>
 </section>
 
-<section class="sec band" id="results">
+<!-- 4. the evidence -->
+<section class="sec band" id="runs">
   <div class="col">
+    <span class="label">The evidence: three runs</span>
+    <h2>The same task under Codex and under ProContract</h2>
+    <p class="intro">Three tasks from the 200-task comparison below, chosen because the verifier's findings are short enough to read: the same model, GPT-6 Luna, and the same six hours. Every marker is an event recorded in the run, and the words are the agents' and the verifier's own. Hidden tests are run after a run ends; no agent sees them.</p>
+    <div class="runs" id="run-tiles"></div>
+  </div>
+</section>
+
+<dialog class="viewer" id="viewer" aria-labelledby="v-title">
+  <div class="v-head">
+    <div><h3 id="v-title"></h3><p id="v-sub"></p></div>
+    <button class="v-close" id="v-close" type="button">Close</button>
+  </div>
+  <div class="v-time" id="v-time"></div>
+  <div class="v-nav">
+    <button type="button" id="v-prev">&larr; Previous event</button>
+    <button type="button" id="v-next">Next event &rarr;</button>
+    <span>at <span class="at" id="v-at"></span></span>
+    <span class="sp"></span>
+    <button type="button" id="v-other">Next task &rarr;</button>
+  </div>
+  <div class="v-panes">
+    <div class="pane cx" id="v-cx"></div>
+    <div class="pane pc" id="v-pc"></div>
+  </div>
+</dialog>
+
+<section class="sec" id="results">
+  <div class="col">
+    <span class="label">The evidence: 200 tasks</span>
     <h2>Higher with every model, and first on ProgramBench</h2>
     <p class="intro">Built on Codex and compared with baselines that run the same model under the same six hours. With one executable and one model, GPT-6 Luna, switching ProContract on raises the mean hidden-test pass rate from 71.22% to 76.28%: 5.07 points, 95% interval [3.70, 6.54], higher on 154 of 200 tasks.</p>
 
@@ -351,18 +446,30 @@
       <figcaption>ProContract with GPT-6.1 Sol is 1.91 points above the best of the 66 public ProgramBench entries.</figcaption>
     </figure>
 
-    <p class="intro" style="margin-top:64px"><strong>Where the gain comes from.</strong> The gain comes from keeping the task open, not from feedback. Refusing the worker's &#8220;done&#8221; with one fixed sentence scores higher than plain <code>/goal</code> on 26 of 30 tasks, but that loop cannot hold the task: no run can close, and the worker rewrites its goal. Under ProContract no run changes its task, and a run can end on a judgment other than the worker's.</p>
-    <figure class="fig" style="margin-top:36px">
+    <div class="two-notes">
+      <div>
+        <h3>The gain comes from keeping the task open</h3>
+        <p>Refusing the worker's &#8220;done&#8221; with one fixed sentence already scores higher than plain <code>/goal</code> on 26 of 30 tasks, and adding the verifier's findings raises the score no further. What the loop cannot do is hold the task: no run can close, and the worker rewrites its goal. Under ProContract no run changes its task.</p>
+      </div>
+      <div>
+        <h3>A judge, not a loop</h3>
+        <p>A loop that refuses every &#8220;done&#8221; is the kernel's first rule with nothing else: a verifier that always answers &#8220;not yet&#8221;. Where tasks do finish, the kernel's verifier answers. On Terminal-Bench 2.0 it ends 89 of 267 attempts at a median of 52% of the time limit, and 84% of those pass the benchmark, against 57% of the rest.</p>
+      </div>
+    </div>
+    <figure class="fig" style="margin-top:44px">
       <a class="img" href="./static/images/performance_paired.png"><img src="./static/images/performance_paired.png" alt="Share of runs still working, per-task gain, the refused loop, and quality against integrity" loading="lazy" width="2200" height="1016"></a>
       <figcaption>ProContract switched on and off: off, the worker declares the task done within two hours.</figcaption>
     </figure>
   </div>
 </section>
 
-<section class="sec" id="evolve">
+<!-- 5. what follows -->
+<section class="sec band" id="evolve">
   <div class="col">
+    <span class="label">What follows</span>
     <h2>The harness becomes evolvable</h2>
-    <p class="intro">Because the kernel's guarantee holds for any harness, every part of the harness is free to change. Improving it is one more responsibility for the same kernel to hold: a revision is a candidate under its own Contract, and the harness under improvement never judges itself.</p>
+    <p class="intro">The fourth observation said that a stop is evidence about the harness. With the task held outside, that becomes useful: a run that stops with its task open exposes a defect of the harness, and because what is owed is the same under every version, the harness can be changed, by its developers or by the agent, without putting the task at risk.</p>
+    <p class="intro">Improving the harness is then one more responsibility for the same kernel to hold: a revision is a candidate under its own Contract, and the harness under improvement never judges itself.</p>
 
     <ol class="flow" aria-label="One step of self-improvement">
       <li><b>A run exposes a defect</b>A run that stops with its task open shows where the harness has to change.</li>
@@ -399,8 +506,9 @@
   </div>
 </section>
 
-<section class="sec band" id="run">
+<section class="sec" id="run">
   <div class="col">
+    <span class="label">Try it</span>
     <h2>The kernel on your machine, in a few seconds</h2>
     <p class="intro">The <a href="https://github.com/Lemutisme/ProContract/blob/main/docs/PROCONTRACT_QUICKSTART.md">quickstart</a> builds one binary and runs one task under the kernel: no model, no container and, after the build, no network. This is part of what it prints.</p>
 <pre class="term" tabindex="0"><span class="c">$ (cd codex-rs &amp;&amp; cargo build --locked -p codex-pro-contract-store --bin pro-contract-store)
@@ -429,6 +537,16 @@ $ cd scripts &amp;&amp; python3 examples/procontract_quickstart.py</span>
       <a href="https://github.com/Lemutisme/ProContract/blob/main/docs/PROCONTRACT_REPRODUCE.md">Reproduction guide</a>
       <a href="https://github.com/Lemutisme/ProContract/blob/main/docs/PROCONTRACT_LAYERS.md">Kernel and harness layers</a>
     </nav>
+  </div>
+</section>
+
+<section class="sec band" id="abstract">
+  <div class="col">
+    <h2>Abstract</h2>
+    <div class="txt abstract" style="margin-top:28px">
+      <p>Two problems now limit long-horizon AI agents: they stop early and leave solvable work undone, and their harnesses cannot be changed safely, by developers or by the agents themselves. Both have one cause: the harness that works on a task also holds what is owed and decides when it is done. An agent's &ldquo;done&rdquo; therefore measures its method, not the task. Given six hours to rebuild a program, Codex, in its mode built for long tasks, declares 197 of 200 tasks complete after a median of 36 minutes, and one program passes every hidden test. The decision fails in two ways: in <em>progress misjudgment</em> the agent takes a passing check of its own for completion, and in <em>responsibility dilution</em> it narrows the task to what its method covers; 62 of the 197 completion messages name a gap and declare the task complete. The model is not the limit: one model stops after a median of 24, 36, or 90 minutes under three harnesses, and when its &ldquo;done&rdquo; is refused the same agent keeps finding and fixing failures for five more hours. But nothing then protects the task, and it begins to rewrite its goal into a narrower one; and when agents rewrite their own harness, each rewrite can change what is owed.</p>
+      <p>ProContract takes the task out of the harness. A small deterministic kernel holds each task's Contract and records progress only when an independent verifier accepts the exact work submitted; what is owed and what was accepted are the same under every version of the harness, including versions the agent writes. The harness thereby becomes <em>evolvable</em>: a run that stops with its task open exposes a defect of the harness, and revisions are decided by controls on the failing inputs, not by benchmark scores; over two rounds the share of runs that stop early at such a defect falls from 40% to 4%. Built on Codex, ProContract scores 5.07 points above Codex on the same model and executable, and with GPT-6.1 Sol it sets the state of the art in mean pass rate on ProgramBench, 89.70%, at 62% of the best public entry's cost.</p>
+    </div>
   </div>
 </section>
 
