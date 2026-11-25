@@ -15,6 +15,6 @@ commit 583ec348cf9007361d09513c716549c41d4d8128.
 ProContract adds the progress-contract kernel and store (codex-rs/pro-contract,
 codex-rs/pro-contract-store), the native extension (codex-rs/ext/pro-contract), and the
 launcher, harness, research runtime and strategies under scripts/, harness/ and strategies/.
-It also changes 79 files of the upstream project to integrate them; these files are listed
-in docs/PROCONTRACT_UPSTREAM_CHANGES.md. All additions and changes are distributed under the
+It also changes 80 files of the upstream project to integrate them and removes two; these
+files are listed in docs/PROCONTRACT_UPSTREAM_CHANGES.md. All additions and changes are distributed under the
 same license.

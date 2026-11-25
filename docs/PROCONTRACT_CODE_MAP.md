@@ -1,7 +1,7 @@
 # ProContract code map
 
 [Documentation](README.md) · [Quickstart](PROCONTRACT_QUICKSTART.md) ·
-[Architecture](PROCONTRACT_LAYERS.md) · [Testing](PROCONTRACT_TESTING.md)
+[Kernel and harness](PROCONTRACT_LAYERS.md) · [Testing](PROCONTRACT_TESTING.md)
 
 This map names the modules and call paths in this repository. The
 [layer document](PROCONTRACT_LAYERS.md) defines the responsibilities they are
@@ -209,31 +209,5 @@ commands and distinguishes local native integration from real-model measurements
 
 ## Documents
 
-Every `docs/PROCONTRACT_*.md` file, by the part of the code it describes.
-
-| Document | What it covers |
-| --- | --- |
-| [QUICKSTART](PROCONTRACT_QUICKSTART.md) | Build the store binary and run one script: a task under the kernel and one self-improvement step. |
-| [RELEASE](PROCONTRACT_RELEASE.md) | Build the `procodex` package from source, install it and run it. |
-| [TESTING](PROCONTRACT_TESTING.md) | The test commands in the repository and what each one needs. |
-| [CODE_MAP](PROCONTRACT_CODE_MAP.md) | This map. |
-| [LAYERS](PROCONTRACT_LAYERS.md) | What belongs to the kernel and what to the evolvable harness, and the development rule that follows. |
-| [OPERATIONS](PROCONTRACT_OPERATIONS.md) | The `Operations` interface: durable execution and evidence operations, capability authority, and version selection and adoption through the store. |
-| [RESEARCH_RUNTIME](PROCONTRACT_RESEARCH_RUNTIME.md) | `ResearchRuntime`: provisioning, owner control, actor capabilities, and candidate projects and measurements. |
-| [PUBLICATION_RECOVERY](PROCONTRACT_PUBLICATION_RECOVERY.md) | Progress publication as an operation that outlives the caller that requested it. |
-| [OBSERVATION_DELIVERY](PROCONTRACT_OBSERVATION_DELIVERY.md) | How execution observations are retained as typed sources and delivered to later work and review. |
-| [CONTEXT_COST](PROCONTRACT_CONTEXT_COST.md) | The working context as a replaceable view of a task: the native context-window profile, and actor identity and cost. |
-| [CONTEXT_OBSERVATION](PROCONTRACT_CONTEXT_OBSERVATION.md) | `source_context`: reading the context that a retained native request actually delivered. |
-| [CREDIT](PROCONTRACT_CREDIT.md) | The credit module: ledger, effect and reach, an improvement as one Contract, judgments by receipts, samples and series, and store migration. |
-| [STEP_CREDIT](PROCONTRACT_STEP_CREDIT.md) | Step-level credit: attributing an outcome to single decisions and choosing the comparison that tests them. |
-| [DECISION_REPLAY](PROCONTRACT_DECISION_REPLAY.md) | Sending one retained model request again, once, as an Operations measurement. |
-| [DECISION_STUDY](PROCONTRACT_DECISION_STUDY.md) | Decision studies as an opt-in research measurement: registration, execution and recovery, and reading the observation. |
-| [FROZEN_EVIDENCE](PROCONTRACT_FROZEN_EVIDENCE.md) | Capturing and reopening, read-only, the public evidence view of a selector state. |
-| [SELECTOR_CAPTURE](PROCONTRACT_SELECTOR_CAPTURE.md) | The opt-in hook that records an actual initial selector exchange with its evidence view and final request bytes. |
-| [SELECTOR_EXCHANGE](PROCONTRACT_SELECTOR_EXCHANGE.md) | The parts of a selector exchange run from a capture, and what each has been tested with. |
-| [POLICY_SPLICE](PROCONTRACT_POLICY_SPLICE.md) | Replacing only the strategy text inside a retained selector request, with a proof of what changed. |
-| [RECORD_EVOLUTION](PROCONTRACT_RECORD_EVOLUTION.md) | Proposed record-level semantics for proposals, judgments and acceptances. A design, not the deployed kernel. |
-| [HARNESS_EVOLUTION](PROCONTRACT_HARNESS_EVOLUTION.md) | Harness interfaces to evolve, derived from retained trajectories, and the choices that stay with strategy. |
-| [HARNESS_EVOLUTION_ORDER](PROCONTRACT_HARNESS_EVOLUTION_ORDER.md) | The order chosen for those harness changes and the reason for each. |
-| [UPSTREAM_INTEGRATION](PROCONTRACT_UPSTREAM_INTEGRATION.md) | How an upstream Codex merge was integrated and which upstream interfaces the harness should use. |
-| [UPSTREAM_CHANGES](PROCONTRACT_UPSTREAM_CHANGES.md) | The upstream Codex files that this fork modifies. |
+The [documentation index](README.md) lists every ProContract document by what it
+covers.

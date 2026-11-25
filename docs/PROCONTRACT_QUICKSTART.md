@@ -36,10 +36,11 @@ target directory the binary is `codex-rs/target/debug/pro-contract-store`.
 
 ## 2. Run the script
 
+From the repository root:
+
 ```sh
 export PRO_CONTRACT_STORE_BIN="$PWD/codex-rs/target/debug/pro-contract-store"
-cd scripts
-python3 examples/procontract_quickstart.py
+python3 scripts/examples/procontract_quickstart.py
 ```
 
 The script reads the binary's path from `PRO_CONTRACT_STORE_BIN` and stops with
@@ -49,8 +50,10 @@ build into another target directory, use that path.
 Options:
 
 - `--keep` keeps the temporary directory and prints its path, so you can
-  inspect the store with the same binary, for example
-  `pro-contract-store events --store <directory>/store`.
+  inspect the store with the same binary:
+  `pro-contract-store contract --store <directory>/store --id task.median`
+  prints the Contract of part (a) as JSON, `events` prints the journal of
+  part (b), and `verify` checks its hash chain.
 - `--seed N` changes the synthetic numbers of part (b).
 - `--no-effect` makes the synthetic candidate no better than the incumbent. The
   same terms then give a Defeat and nothing is adopted.
@@ -123,8 +126,9 @@ Each line of state is what the store returns for the Contract: its standing,
 its version (one more after every accepted command), its generation, the
 current candidate and whether that candidate has Support.
 
-- Every command reaches the kernel with a role. `Propose` belongs to the
-  executor, `Support` and `Defeat` to the verifier, `Discharge` to the settler.
+- Every command reaches the kernel with a role. The worker acts as the
+  executor, whose only command is `Propose`; `Support` and `Defeat` belong to
+  the verifier, `Discharge` to the settler.
   The rule is in [command.rs](../codex-rs/pro-contract/src/command.rs) and
   [transition.rs](../codex-rs/pro-contract/src/transition.rs).
 - In step 3 the worker's report is only text. When the worker sends `Support`

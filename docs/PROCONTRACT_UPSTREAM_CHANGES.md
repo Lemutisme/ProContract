@@ -3,7 +3,8 @@
 ProContract is built on OpenAI Codex. Relative to the upstream base commit `583ec348cf9007361d09513c716549c41d4d8128`,
 the following 80 upstream files are modified. Everything under `codex-rs/pro-contract/`,
 `codex-rs/pro-contract-store/`, `codex-rs/ext/pro-contract/`, `harness/`, `strategies/` and the
-`scripts/procontract_*` and `scripts/procodex*` files is new.
+`scripts/procontract_*` and `scripts/procodex*` files is new. Two upstream files are removed:
+`.github/CODEOWNERS` and `.github/dependabot.yaml`.
 
 - `NOTICE`
 - `README.md`

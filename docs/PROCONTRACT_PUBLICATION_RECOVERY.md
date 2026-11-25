@@ -36,7 +36,7 @@ Task deadlines can be absent. Per-action allocations remain explicit, and a
 reattachment never creates a global task countdown. Status, result recall and
 unknown-effect reporting remain available independently of a finite task lifetime.
 
-The mechanism was motivated by the retained TB4.1 math trajectory: a publication
+The mechanism was motivated by a retained trajectory in which a publication
 outlived its code-mode caller, while repeated calls had no status/join route. The
 baseline gated-worker control reproduces the failure. Candidate controls cover
 live caller loss, changed options/epoch, completion races, cold pending ownership,

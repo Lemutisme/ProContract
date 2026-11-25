@@ -1,4 +1,4 @@
-# ProContract-Codex documentation
+# ProContract documentation
 
 [Project overview](../README.md) · [Quickstart](PROCONTRACT_QUICKSTART.md) ·
 [Code map](PROCONTRACT_CODE_MAP.md)
@@ -8,18 +8,20 @@
 | Goal | Read |
 | --- | --- |
 | See the kernel and one self-improvement step run, without a model or Docker | [Quickstart](PROCONTRACT_QUICKSTART.md) |
-| Build the fork from source and install the launcher | [Release and installation](PROCONTRACT_RELEASE.md) |
-| Run tasks, supply context and inputs, inspect progress | [ProCodex launcher](../scripts/PROCODEX.md) |
-| Understand what the kernel owns and what the harness owns | [Kernel and harness layers](PROCONTRACT_LAYERS.md) |
+| Go from a clone to graded ProgramBench runs | [Reproducing the experiments](PROCONTRACT_REPRODUCE.md) |
+| Build the fork from source and install the launcher | [Build and install](PROCONTRACT_RELEASE.md) |
+| Run tasks, supply context and inputs, inspect progress | [Launcher guide](../scripts/PROCODEX.md) |
+| Understand what the kernel owns and what the harness owns | [Kernel and evolvable harness](PROCONTRACT_LAYERS.md) |
 | Find the implementation and trace a call | [Code map](PROCONTRACT_CODE_MAP.md) |
-| Choose and run tests | [Testing](PROCONTRACT_TESTING.md) |
-| Start, inspect or resume a self-improvement (RSI) responsibility | [Research runtime](PROCONTRACT_RESEARCH_RUNTIME.md) |
+| Choose and run tests, and see the recorded run | [Testing](PROCONTRACT_TESTING.md), [test record](PROCONTRACT_TEST_RECORD.md) |
+| Start, inspect or resume a self-improvement responsibility | [Research runtime](PROCONTRACT_RESEARCH_RUNTIME.md) |
 | Integrate execution, evidence or version selection | [Operations interface](PROCONTRACT_OPERATIONS.md) |
 
-The architecture has two components: a responsibility kernel and an evolvable
-harness. Strategy is the harness's replaceable context and instruction
-component. The [code map](PROCONTRACT_CODE_MAP.md) relates this ownership model
-to the Rust crates, the Python runtime and the inherited Codex capabilities.
+ProContract has two components: the kernel, which holds what is owed and what
+was accepted, and the evolvable harness, which does the work. Strategy is the
+harness's replaceable library of instructions. The
+[code map](PROCONTRACT_CODE_MAP.md) relates this split to the Rust crates, the
+Python runtime and the capabilities inherited from Codex.
 
 ## All ProContract documents
 
@@ -28,18 +30,20 @@ Entry documents:
 | Document | What it covers |
 | --- | --- |
 | [PROCONTRACT_QUICKSTART.md](PROCONTRACT_QUICKSTART.md) | Build the store binary and run one script: a task under the kernel and one self-improvement step. |
+| [PROCONTRACT_REPRODUCE.md](PROCONTRACT_REPRODUCE.md) | From a clone to graded ProgramBench runs: the kernel alone, one instance in both arms, a seeded batch, the settings of the paper's runs and what differs from them. |
 | [PROCONTRACT_RELEASE.md](PROCONTRACT_RELEASE.md) | Build the `procodex` package from source, install it and run it. |
-| [PROCONTRACT_REPRODUCE.md](PROCONTRACT_REPRODUCE.md) | From a clone to the paper's ProgramBench measurements: the kernel alone, one instance in both arms, a graded batch, and the settings of the paper's runs. |
 | [PROCONTRACT_TESTING.md](PROCONTRACT_TESTING.md) | The test commands in the repository and what each one needs. |
 | [PROCONTRACT_TEST_RECORD.md](PROCONTRACT_TEST_RECORD.md) | One run of the tests on this release: what passed, what was skipped, what was not run. |
 | [PROCODEX_STANDALONE.md](PROCODEX_STANDALONE.md) | Install the native client beside an existing Codex, under its own command name and state directory. |
-| [PROCONTRACT_CODE_MAP.md](PROCONTRACT_CODE_MAP.md) | Where the kernel, store, native extension, launcher and RSI runtime are implemented, with call paths. |
-| [PROCONTRACT_LAYERS.md](PROCONTRACT_LAYERS.md) | What belongs to the kernel and what to the evolvable harness, and the development rule that follows. |
+| [PROCONTRACT_LAYERS.md](PROCONTRACT_LAYERS.md) | What belongs to the kernel and what to the evolvable harness, and where to put a change. |
+| [PROCONTRACT_CODE_MAP.md](PROCONTRACT_CODE_MAP.md) | Where the kernel, store, native extension, launcher and self-improvement runtime are implemented, with call paths. |
+| [PROCONTRACT_UPSTREAM_CHANGES.md](PROCONTRACT_UPSTREAM_CHANGES.md) | The upstream Codex files that this fork modifies. |
 
-Runtime interfaces:
+The harness at run time:
 
 | Document | What it covers |
 | --- | --- |
+| [PROCONTRACT_NATIVE_LANE.md](PROCONTRACT_NATIVE_LANE.md) | How the native task lane handles deadlines, review, continuation, interruption and resources. |
 | [PROCONTRACT_OPERATIONS.md](PROCONTRACT_OPERATIONS.md) | The `Operations` interface: durable execution and evidence operations, capability authority, and version selection and adoption through the store. |
 | [PROCONTRACT_RESEARCH_RUNTIME.md](PROCONTRACT_RESEARCH_RUNTIME.md) | `ResearchRuntime`: provisioning, owner control, actor capabilities, and candidate projects and measurements. |
 | [PROCONTRACT_PUBLICATION_RECOVERY.md](PROCONTRACT_PUBLICATION_RECOVERY.md) | Progress publication as an operation that outlives the caller that requested it: status, rejoining, no repeated effects. |
@@ -57,18 +61,15 @@ Credit and decision-level measurement:
 | [PROCONTRACT_DECISION_STUDY.md](PROCONTRACT_DECISION_STUDY.md) | Decision studies as an opt-in research measurement: registration, execution and recovery, and how to read the observation. |
 | [PROCONTRACT_FROZEN_EVIDENCE.md](PROCONTRACT_FROZEN_EVIDENCE.md) | Capturing and reopening, read-only, the public evidence view of a selector state. |
 | [PROCONTRACT_SELECTOR_CAPTURE.md](PROCONTRACT_SELECTOR_CAPTURE.md) | An opt-in hook that records an actual initial selector exchange together with its evidence view and final request bytes. |
+| [PROCONTRACT_SELECTOR_NATIVE_SOURCE.md](PROCONTRACT_SELECTOR_NATIVE_SOURCE.md) | Verifying a closed native selector source and making it readable by an Operations host, under identities kept separate from the original run. |
 | [PROCONTRACT_SELECTOR_EXCHANGE.md](PROCONTRACT_SELECTOR_EXCHANGE.md) | The parts of a selector exchange run from a capture (native archive export, isolated reader, Operations runner, receipts) and what each has been tested with. |
 | [PROCONTRACT_POLICY_SPLICE.md](PROCONTRACT_POLICY_SPLICE.md) | Replacing only the strategy text inside a retained selector request, with a proof of what changed. |
-| [PROCONTRACT_RECORD_EVOLUTION.md](PROCONTRACT_RECORD_EVOLUTION.md) | Proposed record-level semantics for proposals, judgments and acceptances. A design, not the deployed kernel. |
 
-Design notes on the harness and on upstream Codex:
+A design note:
 
 | Document | What it covers |
 | --- | --- |
-| [PROCONTRACT_HARNESS_EVOLUTION.md](PROCONTRACT_HARNESS_EVOLUTION.md) | Harness interfaces to evolve, derived from retained trajectories, and the choices that stay with strategy. |
-| [PROCONTRACT_HARNESS_EVOLUTION_ORDER.md](PROCONTRACT_HARNESS_EVOLUTION_ORDER.md) | The order chosen for those harness changes and the reason for each. |
-| [PROCONTRACT_UPSTREAM_INTEGRATION.md](PROCONTRACT_UPSTREAM_INTEGRATION.md) | How an upstream Codex merge was integrated and which upstream interfaces the harness should use. |
-| [PROCONTRACT_UPSTREAM_CHANGES.md](PROCONTRACT_UPSTREAM_CHANGES.md) | The upstream Codex files that this fork modifies. |
+| [PROCONTRACT_RECORD_EVOLUTION.md](PROCONTRACT_RECORD_EVOLUTION.md) | Proposed record-level semantics for proposals, judgments and acceptances. A design, not the deployed kernel. |
 
 ## Strategy
 
@@ -79,17 +80,17 @@ Design notes on the harness and on upstream Codex:
   instructions for continuous research, trajectory analysis, decision
   attribution, credit, and the operations and evidence capabilities.
 
-## Earlier designs
+## Records of earlier studies
 
-These documents describe earlier designs and study protocols. Their limits and
-workflow rules belong to those versions. Use the layer document and the source
-code for current behavior.
+These documents sit next to the scripts they describe and record earlier
+designs and study protocols as they were run. Their limits and workflow rules
+belong to those studies; the layer document and the source code describe
+current behaviour.
 
-- [Earlier responsibility-kernel audit](../scripts/PROCONTRACT_RESPONSIBILITY_KERNEL.md).
-- [Earlier RSI design](../scripts/PROCONTRACT_RSI.md) and
-  [finite acceptance study](../scripts/PROCONTRACT_RSI_ACCEPTANCE.md).
-
-The earlier campaign entry point remains available as `procodex rsi-legacy`.
+- [Responsibility-kernel audit](../scripts/PROCONTRACT_RESPONSIBILITY_KERNEL.md)
+- [Earlier self-improvement design](../scripts/PROCONTRACT_RSI.md) and its
+  [finite acceptance study](../scripts/PROCONTRACT_RSI_ACCEPTANCE.md); the
+  earlier campaign entry point remains available as `procodex rsi-legacy`
 
 ## Upstream Codex
 
@@ -103,5 +104,5 @@ These references describe upstream Codex or its inherited developer tooling:
   [sandbox](sandbox.md) and [skills](skills.md) references.
 - [Retained upstream CI recipes](../ci/README.md).
 
-Install this fork through the release guide above; upstream distribution
-commands install OpenAI's Codex package.
+Install this fork through [Build and install](PROCONTRACT_RELEASE.md); upstream
+distribution commands install OpenAI's Codex package.

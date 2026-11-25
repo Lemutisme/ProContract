@@ -11,8 +11,8 @@ references. Models select only a name in that host registry:
 
 ```python
 descriptor = describe(state_root, capture_sha256,
-                      collection="procontract-selector-collection-20261119-v2",
-                      owned_effects=collection_root / "cases/coq-block-bound/OWNED_EFFECTS.json")
+                      collection="COLLECTION",
+                      owned_effects=collection_root / "cases/CASE/OWNED_EFFECTS.json")
 # Write descriptor once, retain its bytes/hash, then:
 config = profile(new_host_root, {"first_initial": reference(descriptor_path)})
 ```

@@ -34,15 +34,14 @@ hash. Caller qualification must check changed candidates as well as identities:
 identity equality alone cannot establish that a different policy touches only
 the intended ranges.
 
-The v4 source policies are the frozen November14 files:
+The source policies of the qualification are two frozen files:
 
 - Baseline `9672da72d2f541fd26ed35506f0609eeaeed0ef1caf487db98ea731fec5f484b`,
   3,861 bytes, in the baseline package's `policies/continuation.md`.
 - Candidate `00a800dc3f406449449b27bbf8c06edf3ad9bd6052b7ae815b7f61faf9f0af28`,
   4,601 bytes, in `candidate-project/policies/continuation.md`.
 
-Qualification under `procontract-policy-splice-qualification-20261119/` checks
-all 120 frozen v3 requests as identities (75 named-context and 45 legacy-tag
+The qualification checks all 120 frozen v3 requests as identities (75 named-context and 45 legacy-tag
 forms). The 78 baseline points and 18 candidate points also receive forward and
 reverse transformations. Independent v3 policy extraction, semantic field
 comparison, raw unchanged-gap checks and the fixed 686d input preflight pass for

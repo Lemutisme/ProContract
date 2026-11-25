@@ -195,4 +195,5 @@ installs.
 
 ## Recorded run
 
-[PROCONTRACT_TEST_RECORD.md](PROCONTRACT_TEST_RECORD.md) records one run of the Python test modules on this release, including the modules that do not pass.
+[PROCONTRACT_TEST_RECORD.md](PROCONTRACT_TEST_RECORD.md) records one run of the
+tests on this release: what passed, what was skipped and what was not run.

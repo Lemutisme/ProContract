@@ -2,7 +2,7 @@
 
 > Historical audit and experiment protocol. Current implementation entry points
 > are in the [code map](../docs/PROCONTRACT_CODE_MAP.md); current ownership rules
-> are in the [layer agreement](../docs/PROCONTRACT_LAYERS.md).
+> are in the [layer document](../docs/PROCONTRACT_LAYERS.md).
 
 This stage holds the native binary and task protocol fixed. It does not repair the
 kernel before measuring its existing behavior, reopen a terminal study, enable RSI,

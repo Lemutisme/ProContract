@@ -189,7 +189,7 @@ tool lifecycle and context transitions stay available; opaque reasoning is omitt
 Malformed records and missing sources remain explicit. The projection assigns no
 causal edge, role inferred from an alias, confidence or numeric credit.
 
-The November 14 ProgramBench study calls this same observer in both arms after
+A ProgramBench study calls this same observer in both arms after
 solver shutdown. Its measurement adapter captures the projection, score, costs and
 submission through the existing source store and returns their handles to the
 research responsibility. The returning agent can inspect new successful and failed

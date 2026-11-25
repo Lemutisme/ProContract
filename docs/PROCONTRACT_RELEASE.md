@@ -1,4 +1,4 @@
-# ProContract-Codex: build from source and install
+# ProContract: build from source and install
 
 [Documentation](README.md) · [Quickstart](PROCONTRACT_QUICKSTART.md) ·
 [Code map](PROCONTRACT_CODE_MAP.md) · [Testing](PROCONTRACT_TESTING.md)

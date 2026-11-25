@@ -1,4 +1,4 @@
-# ProContract-Codex launcher (`procodex`)
+# ProContract launcher (`procodex`)
 
 [Documentation](../docs/README.md) · [Build and install](../docs/PROCONTRACT_RELEASE.md) ·
 [Code map](../docs/PROCONTRACT_CODE_MAP.md)
@@ -119,9 +119,10 @@ task evidence. A numerical check does not establish an unrestricted theorem.
 Partial review keeps supported requirements, counterexamples and scoped evidence
 gaps together. An independent counterexample may direct a bounded repair while
 the gap continues to forbid full Support. Unknown process shutdown prevents
-further automatic execution. See the
-[layer document](../docs/PROCONTRACT_LAYERS.md) for the evidence and lifecycle
-boundaries.
+further automatic execution. The
+[layer document](../docs/PROCONTRACT_LAYERS.md) gives the boundary, and the
+[native task lane](../docs/PROCONTRACT_NATIVE_LANE.md) its evidence and
+lifecycle rules.
 
 ```sh
 procodex --version

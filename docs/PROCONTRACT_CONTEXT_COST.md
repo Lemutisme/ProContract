@@ -40,10 +40,10 @@ retained ProgramBench runs. The portable recovery path qualified here uses
 files and public evidence. The selected profile prevents an implicit legacy
 Notes MCP fallback; it does not create a remote history capability.
 
-The November 9 context study already qualified native switching and a bounded
-recovery adapter on an earlier package. This change reuses that mechanism and
-checks the current `82db02f91` native package, selected strategy and original
-contract/grant across the actual transition. It is not a new memory service.
+An earlier context study qualified native switching and a bounded recovery
+adapter on an earlier package. This change reuses that mechanism and checks the
+native package, the selected strategy and the original Contract and grant across
+the actual transition. It is not a new memory service.
 
 ## Qualification
 
@@ -60,8 +60,7 @@ open-ended tasks:
   executor or task allocation is introduced.
 
 The control establishes transport and lifecycle behavior. It does not measure
-whether a model chooses good notes or improves benchmark quality/cost. Active
-frozen cohorts keep their admitted configuration.
+whether a model chooses good notes or improves benchmark quality/cost.
 
 ## Actor identity and cost
 
