@@ -4,7 +4,7 @@
   'use strict';
   var RUNS = window.PC_RUNS || [];
   var NS = 'http://www.w3.org/2000/svg';
-  var C = { pc: '#0b6e62', pcBar: '#cfe6e1', no: '#bf4b30', sub: '#3949a3', har: '#6e7781', ink: '#1f2328', muted: '#656d76', faint: '#8c959f', dots: '#c9ced4' };
+  var C = { pc: '#0b6e62', pcBar: '#cfe6e1', no: '#bf4b30', har: '#6b737c', ink: '#1d2125', muted: '#5f6770', faint: '#8b939b', dots: '#c9ced4' };
 
   function h(tag, attrs, kids) {
     var n = document.createElement(tag), k;
@@ -24,6 +24,7 @@
     return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + ('0' + (m % 60)).slice(-2) + ' min';
   }
   function pct(p) { return (p === 100 ? '100' : p.toFixed(1)) + '%'; }
+  function thousands(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
   function stateLine(st) {
     return 'standing=outstanding version=' + st.version + ' generation=' + st.generation + ' candidate=' + (st.candidate || 'none') + ' support=none';
   }
@@ -33,20 +34,21 @@
   }
 
   /* One figure, three sizes. Codex above, ProContract below, one shared time axis.
+     On the ProContract bar the worker's submissions sit on the bar and the verifier's answers just below it.
      mode 'hero': the large teaser, outcomes on the lane's label row, main events clickable.
      mode 'mini': a tile. mode 'full': the viewer, every event selectable. */
   var SIZE = {
-    hero: { H: 232, yC: 62, yP: 152, yA: 198, bar: 14, name: 17, out: 23, small: 14.5, ms: 1.55, L: 2, R: 2 },
-    mini: { H: 122, yC: 30, yP: 78, yA: 100, bar: 8, name: 12.5, out: 0, small: 12, ms: 1, L: 2, R: 9 },
-    full: { H: 142, yC: 36, yP: 90, yA: 116, bar: 9, name: 13.5, out: 0, small: 12.5, ms: 1.05, L: 10, R: 14 }
+    hero: { H: 226, yC: 56, yP: 140, yA: 196, bar: 12, name: 16, out: 22, small: 14, ms: 1.35, L: 2, R: 2 },
+    mini: { H: 128, yC: 30, yP: 76, yA: 108, bar: 7, name: 12.5, out: 0, small: 12, ms: .9, L: 2, R: 9 },
+    full: { H: 150, yC: 36, yP: 88, yA: 126, bar: 8, name: 13, out: 0, small: 12.5, ms: 1, L: 10, R: 14 }
   };
   function timeline(run, W, mode) {
     var z = SIZE[mode], narrow = W < 560;
-    if (mode === 'hero' && narrow) z = { H: 204, yC: 56, yP: 132, yA: 172, bar: 12, name: 15, out: 17, small: 13, ms: 1.25, L: 2, R: 8 };
+    if (mode === 'hero' && narrow) z = { H: 196, yC: 50, yP: 122, yA: 170, bar: 10, name: 14.5, out: 17, small: 12.5, ms: 1, L: 2, R: 8 };
     var x = function (t) { return z.L + t / run.limit * (W - z.L - z.R); };
     var defeats = run.pc.events.filter(function (e) { return e.kind === 'defeat'; }).length;
     var svg = s('svg', { viewBox: '0 0 ' + W + ' ' + z.H, width: W, height: z.H, role: 'img', 'aria-label': 'Codex declares the task done at ' + clock(run.codex.minutes) + ' and scores ' + pct(run.codex.pass) + ' of hidden tests. ProContract works for six hours, receives ' + defeats + ' counterexamples from the verifier, and scores ' + pct(run.pc.pass) + '.' });
-    var yC = z.yC, yP = z.yP, yA = z.yA, hb = z.bar / 2;
+    var yC = z.yC, yP = z.yP, yA = z.yA, hb = z.bar / 2, yV = yP + hb + 9 * z.ms + 3;
     // lane names, and on the teaser the outcome on the same row
     svg.appendChild(s('text', { x: z.L, y: yC - hb - 12, 'font-size': z.name, 'font-weight': 600, style: 'fill:' + C.har }, 'Codex /goal'));
     svg.appendChild(s('text', { x: z.L, y: yP - hb - 14, 'font-size': z.name, 'font-weight': 700, style: 'fill:' + C.pc }, 'ProContract'));
@@ -66,7 +68,7 @@
     svg.appendChild(s('rect', { x: x(0), y: yC - hb, width: Math.max(2, xe - x(0)), height: z.bar, rx: hb, fill: C.har }));
     svg.appendChild(s('line', { x1: xe, y1: yC - hb - 5, x2: xe, y2: yC + hb + 5, stroke: C.ink, 'stroke-width': mode === 'hero' ? 2.4 : 1.8, 'stroke-linecap': 'round' }));
     var doneText = '“done” at ' + clock(run.codex.minutes) + (mode !== 'mini' && !narrow ? ': the run ends' : '');
-    var dt = s('text', { x: xe + (mode === 'hero' ? 13 : 9), y: yC + z.small * 0.36, 'font-size': z.small, 'font-weight': mode === 'hero' ? 500 : 400, style: 'fill:' + C.ink + ';paint-order:stroke;stroke:' + (mode === 'hero' ? '#f6f7f9' : '#fff') + ';stroke-width:5px;stroke-linejoin:round' }, doneText);
+    var dt = s('text', { x: xe + (mode === 'hero' ? 12 : 9), y: yC + z.small * 0.36, 'font-size': z.small, 'font-weight': mode === 'hero' ? 500 : 400, style: 'fill:' + C.ink + ';paint-order:stroke;stroke:#fff;stroke-width:5px;stroke-linejoin:round' }, doneText);
     svg.appendChild(dt);
     // ProContract: the bar runs the whole allowance
     svg.appendChild(s('rect', { x: x(0), y: yP - hb, width: x(run.limit) - x(0), height: z.bar, rx: hb, fill: C.pcBar }));
@@ -78,13 +80,13 @@
     }
     function glyph(g, kind, cx, cy) {
       var m = z.ms;
-      if (kind === 'propose') g.appendChild(s('path', { d: 'M' + cx + ' ' + (cy - 7.5 * m) + 'L' + (cx + 6.8 * m) + ' ' + (cy + 5.5 * m) + 'H' + (cx - 6.8 * m) + 'z', fill: C.sub, stroke: '#fff', 'stroke-width': mode === 'hero' ? 1.5 : 1, 'stroke-linejoin': 'round' }));
+      if (kind === 'propose') g.appendChild(s('path', { d: 'M' + cx + ' ' + (cy - 7.5 * m) + 'L' + (cx + 6.8 * m) + ' ' + (cy + 5.5 * m) + 'H' + (cx - 6.8 * m) + 'z', fill: C.ink, stroke: '#fff', 'stroke-width': mode === 'hero' ? 1.5 : 1, 'stroke-linejoin': 'round' }));
       else if (kind === 'defeat') {
         g.appendChild(s('path', { d: 'M' + (cx - 5 * m) + ' ' + (cy - 5 * m) + 'l' + 10 * m + ' ' + 10 * m + 'M' + (cx + 5 * m) + ' ' + (cy - 5 * m) + 'l' + (-10 * m) + ' ' + 10 * m, stroke: '#fff', 'stroke-width': 2.4 * m + 2.4, fill: 'none', 'stroke-linecap': 'round' }));
         g.appendChild(s('path', { d: 'M' + (cx - 5 * m) + ' ' + (cy - 5 * m) + 'l' + 10 * m + ' ' + 10 * m + 'M' + (cx + 5 * m) + ' ' + (cy - 5 * m) + 'l' + (-10 * m) + ' ' + 10 * m, stroke: C.no, 'stroke-width': 2.4 * m, fill: 'none', 'stroke-linecap': 'round' }));
       }
       else if (kind === 'inconclusive') g.appendChild(s('circle', { cx: cx, cy: cy, r: 4.6 * m, fill: '#fff', stroke: C.muted, 'stroke-width': 1.5 }));
-      else if (kind === 'handover') g.appendChild(s('line', { x1: cx, y1: cy + hb + 4, x2: cx, y2: cy + hb + 12, stroke: C.har, 'stroke-width': 2, 'stroke-linecap': 'round' }));
+      else if (kind === 'handover') g.appendChild(s('line', { x1: cx, y1: cy - hb - 9, x2: cx, y2: cy - hb - 2, stroke: C.har, 'stroke-width': 2, 'stroke-linecap': 'round' }));
       else if (kind === 'note') g.appendChild(s('line', { x1: cx, y1: cy - hb + 1.5, x2: cx, y2: cy + hb - 1.5, stroke: '#fff', 'stroke-width': 1.5 }));
     }
     var show = { hero: { propose: 1, defeat: 1, inconclusive: 1 }, mini: { propose: 1, defeat: 1, inconclusive: 1 }, full: { issue: 1, propose: 1, defeat: 1, inconclusive: 1, handover: 1, end: 1, note: 1, done: 1 } }[mode];
@@ -93,9 +95,10 @@
         if (!show[e.kind]) return;
         var active = mode !== 'mini';
         var g = s('g', active ? { 'class': 'mk', tabindex: 0, role: 'button', 'data-lane': lname, 'data-i': i, 'aria-label': (lname === 'cx' ? 'Codex, ' : 'ProContract, ') + label(e, lname) + ' at ' + clock(e.t) } : {});
-        var cx = x(e.t), hy = e.kind === 'handover' ? cy + hb + 8 : cy;
+        var judged = lname === 'pc' && (e.kind === 'defeat' || e.kind === 'inconclusive');
+        var gy = judged ? yV : cy, cx = x(e.t), hy = e.kind === 'handover' ? cy - hb - 6 : gy;
         if (active) g.appendChild(s('circle', { 'class': 'hit', cx: cx, cy: hy, r: e.kind === 'note' ? 7 : (mode === 'hero' ? 15 : 11), fill: 'transparent' }));
-        glyph(g, e.kind, cx, cy);
+        glyph(g, e.kind, cx, gy);
         svg.appendChild(g);
       });
     }
@@ -128,7 +131,7 @@
     var svg = timeline(run, W, 'hero');
     stage.appendChild(svg);
     bindMarkers(svg, function (lane, i, g) { openRun(shown, g, lane, i); });
-    $('teaser-cap').textContent = 'Task: rebuild a program that ' + run.what + ' (' + run.repo + '). The same model, GPT-6 Luna, and six hours allowed in each run. Hidden tests are run after a run ends; no agent sees them. Select a marker to read what was said.';
+    $('teaser-cap').textContent = 'Task: rebuild a program that ' + run.what + '. The same model, GPT-6 Luna, and six hours in each run; hidden tests are run only after a run ends. Select a marker to read what was said.';
     Array.prototype.forEach.call(tabs.children, function (b, k) { b.setAttribute('aria-selected', k === shown ? 'true' : 'false'); b.tabIndex = k === shown ? 0 : -1; });
   }
   if (tabs && RUNS.length) {
@@ -159,7 +162,7 @@
       h('div', {}, [h('b', { text: pct(run.codex.pass) }), 'Codex, hidden tests']),
       h('div', { 'class': 'pc' }, [h('b', { text: pct(run.pc.pass) }), 'ProContract, hidden tests'])
     ]));
-    b.appendChild(h('span', { 'class': 'open', text: 'Inspect trajectory →' }));
+    b.appendChild(h('span', { 'class': 'open', text: 'Read it step by step →' }));
     b.addEventListener('click', function () { openRun(idx, b); });
     tiles.appendChild(b);
   });
@@ -176,7 +179,7 @@
       if (lane ? (m.lane === lane && m.i === i) : (m.lane === 'cx' && run.codex.events[m.i].kind === 'done')) cur.at = k;   // default: the moment Codex says "done"
     });
     $('v-title').textContent = run.repo;
-    $('v-sub').textContent = 'Task: rebuild a program that ' + run.what + '. GPT-6 Luna, six hours allowed in each run. Codex: ' + run.codex.requests + ' model requests. ProContract: ' + run.pc.requests + '.';
+    $('v-sub').textContent = 'Task: rebuild a program that ' + run.what + '. GPT-6 Luna, six hours allowed in each run. Model requests: ' + thousands(run.codex.requests) + ' under Codex /goal (stock release), ' + thousands(run.pc.requests) + ' under ProContract.';
     if (from) opener = from;
     if (!dlg.open) { if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', ''); }
     dlg.scrollTop = 0;
@@ -194,6 +197,7 @@
   }
   function show() {
     var m = cur.merged[cur.at], run = cur.run, T = m.t;
+    $('v-panes').className = 'v-panes sel-' + m.lane;
     $('v-at').textContent = clock(T);
     $('v-prev').disabled = cur.at === 0; $('v-next').disabled = cur.at === cur.merged.length - 1;
     Array.prototype.forEach.call(cur.svg.querySelectorAll('.mk'), function (g) {
